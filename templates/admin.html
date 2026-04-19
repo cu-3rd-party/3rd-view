@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="ru" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расписание | ЦУ</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    
+    <style>
+        body { background-color: #1a1a1d; padding-top: 20px; }
+        #calendar { background-color: #222226; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .fc-event { cursor: pointer; border-radius: 4px; padding: 2px 4px; }
+        .fc-timegrid-slot { height: 3em !important; }
+        
+        .sidebar-container { min-height: calc(100vh - 40px); height: auto; display: flex; flex-direction: column; gap: 15px; }
+        .filter-panel { background-color: #222226; padding: 15px; border-radius: 10px; display: flex; flex-direction: column; flex: 1; }
+
+        /* Делаем сами окна списков строго не меньше 250 пикселей каждое */
+        .scroll-container { flex: 1 1 auto; min-height: 250px !important; overflow-y: auto; margin-bottom: 10px; padding-right: 5px; }
+
+        /* Жестко запрещаем кнопкам и полям поиска сплющиваться */
+        .filter-panel h6, 
+        .filter-panel .search-input, 
+        .filter-panel .d-flex,
+        .filter-panel .btn-group,
+        .filter-panel .border-top {
+            flex-shrink: 0 !important;
+        }
+
+
+        /* Стили Режима 1 (Каталог) */
+        .course-item, .teacher-item { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+        .course-label { font-size: 0.85rem; line-height: 1.2; width: 100%; cursor: pointer;}
+        .course-query { font-size: 0.75rem; color: #adb5bd; display: block; margin-top: 3px; font-style: italic;}
+        .search-input { background-color: #1a1a1d; color: #fff; border: 1px solid #444; border-radius: 5px; padding: 4px 8px; font-size: 0.85rem; margin-bottom: 10px; width: 100%; outline: none;}
+        .search-input:focus { border-color: #0d6efd; }
+        
+        /* Стили Режима 2 (Карточки) */
+        .active-filter-card { background-color: #2b2b30; border: 1px solid #444; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+        .filter-card-header { background-color: #333338; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444;}
+        .filter-card-title { font-size: 0.9rem; font-weight: bold; margin: 0; line-height: 1.2; width: 100%;}
+        .filter-card-meta { font-size: 0.7rem; color: #adb5bd; }
+        .filter-card-body { padding: 10px 12px; }
+        .teacher-check-label { font-size: 0.85rem; cursor: pointer; }
+        
+        /* Общие элементы */
+        .settings-btn { background: none; border: none; color: #6c757d; font-size: 1.1rem; padding: 0 5px; cursor: pointer; transition: 0.2s;}
+        .settings-btn:hover { color: #fff; transform: rotate(90deg); }
+        .btn-icon { background: none; border: none; color: #adb5bd; padding: 2px 6px; border-radius: 4px; transition: 0.2s;}
+        .btn-icon:hover { background-color: #444; color: #fff; }
+        .btn-icon.text-danger:hover { background-color: #dc3545; color: #fff; }
+        .link-text a { color: #0d6efd; text-decoration: underline; }
+        #sync-log { font-family: monospace; font-size: 0.8rem; height: 100px; overflow-y: auto; background: #000; padding: 10px; border-radius: 5px; color: #0f0; margin-top: 15px; display: none;}
+        .name-badge { cursor: pointer; transition: 0.2s; white-space: normal; text-align: left; margin-bottom: 5px;}
+        .name-badge:hover { background-color: #0d6efd !important; }
+        
+        /* Скроллбар */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1d; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+        
+        /* ======================================================= */
+        /* СТИЛИ ЯНДЕКС КАЛЕНДАРЯ ДЛЯ FULLCALENDAR                 */
+        /* ======================================================= */
+        
+        /* Переопределение базовых переменных темы */
+        :root {
+            --fc-border-color: #333338;
+            --fc-page-bg-color: #1a1a1d;
+            --fc-neutral-bg-color: #222226;
+            --fc-today-bg-color: rgba(255, 255, 255, 0.03);
+            --fc-event-border-color: transparent;
+        }
+
+        #calendar { 
+            background-color: #1e1e22; 
+            padding: 0; 
+            border-radius: 10px; 
+            box-shadow: none; 
+            border: 1px solid #333338;
+            overflow: hidden;
+        }
+
+        /* Заголовки дней (пн 13, вт 14) */
+        .fc-col-header-cell-cushion {
+            color: #adb5bd !important;
+            text-decoration: none !important;
+            font-weight: 500;
+            font-size: 0.85rem;
+            padding: 10px 0 !important;
+        }
+        .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+            color: #fff !important;
+        }
+
+        /* Колонка времени (слева) */
+        .fc-timegrid-axis-cushion {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+
+        /* Сетка времени (убираем лишние линии получасовок) */
+        .fc-timegrid-slot-minor { border-top: transparent !important; }
+        .fc-timegrid-slot { height: 2.5em !important; }
+
+        /* Внешний вид карточки события (Yandex Style) */
+        .fc-timegrid-event {
+            background-color: #2a2a30 !important;
+            border: 1px solid #3a3a42 !important;
+            border-radius: 6px !important;
+            margin: 1px 2px 0 2px !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+        }
+        
+        .fc-event-main {
+            padding: 4px 6px !important; /* Делаем паддинги чуть компактнее */
+            color: #e5e5e7 !important;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Скрываем стандартные элементы */
+        .fc-event-time, .fc-event-title { display: none !important; }
+
+        /* Линия текущего времени */
+        .fc-now-indicator-line { border-color: #ff3333 !important; border-width: 2px !important; }
+        .fc-now-indicator-arrow { 
+            border-color: #ff3333 !important; 
+            border-width: 5px 5px 5px 0 !important; 
+            border-top-color: transparent !important; 
+            border-bottom-color: transparent !important; 
+        }
+
+        /* Время Яндекса */
+        .ya-time {
+            font-size: 0.75rem; 
+            color: #adb5bd; 
+            margin-bottom: 2px; 
+            line-height: 1.1;
+            flex-shrink: 0;
+        }
+
+        /* Контейнер заголовка */
+        .ya-title-container {
+            display: -webkit-box; /* Для красивой обрезки многоточием */
+            -webkit-line-clamp: 4; /* Макс. строк до обрезки, чтобы текст не вылезал за блок */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        /* Текст Яндекса */
+        .ya-title-text {
+            font-size: 0.8rem; 
+            font-weight: 500; 
+            line-height: 1.2;
+            word-break: normal; 
+            overflow-wrap: break-word; 
+            
+            /* Новые свойства для красивого переноса по слогам: */
+            -webkit-hyphens: auto;
+            hyphens: auto;
+            
+            color: #fff;
+        }
+
+        /* ======================================================= */
+        /* РАСШИРЕНИЕ ПАРЫ ПРИ НАВЕДЕНИИ (Адаптировано под Яндекс) */
+        /* ======================================================= */
+        td.fc-timegrid-col:has(.fc-timegrid-event:hover),
+        .fc-timegrid-col-events:has(.fc-timegrid-event:hover),
+        .fc-timegrid-event-harness:has(.fc-timegrid-event:hover) { z-index: 9999 !important; }
+        
+        .fc-timegrid-event:hover {
+            overflow: visible !important;
+        }
+        
+        .fc-timegrid-event:hover .fc-event-main {
+            position: absolute; top: 0; left: 0; z-index: 9999;
+            min-width: 100% !important; width: max-content !important; 
+            max-width: 250px; 
+            height: max-content !important; min-height: 100% !important;     
+            background-color: #33333a !important; 
+            border: 1px solid #4a4a55 !important;
+            border-radius: 6px; 
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.8) !important; 
+            pointer-events: none !important; 
+        }
+
+        /* При наведении убираем ограничение строк, чтобы текст было видно полностью */
+        .fc-timegrid-event:hover .ya-title-container {
+            display: block;
+            -webkit-line-clamp: unset;
+        }
+    
+
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Боковая панель -->
+        <div class="col-md-3 sidebar-container">
+            
+            <div class="filter-panel" style="display: flex; flex-direction: column; height: 100%;">
+                
+                <!-- Переключатель режимов -->
+                <div class="btn-group w-100 mb-3" role="group">
+                    <input type="radio" class="btn-check" name="ui-mode" id="mode-list" autocomplete="off" onchange="switchMode('list')">
+                    <label class="btn btn-outline-primary btn-sm" for="mode-list"><i class="bi bi-list-ul"></i> Каталог</label>
+                  
+                    <input type="radio" class="btn-check" name="ui-mode" id="mode-cards" autocomplete="off" onchange="switchMode('cards')">
+                    <label class="btn btn-outline-primary btn-sm" for="mode-cards"><i class="bi bi-grid-fill"></i> Мои предметы</label>
+                </div>
+
+                <!-- ============================ -->
+                <!-- РЕЖИМ 1: КАТАЛОГ (LIST)      -->
+                <!-- ============================ -->
+                <div id="view-list" class="d-none" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0; margin-bottom: 15px;">
+                        <h6 class="text-white">Предметы</h6>
+                        <input type="text" class="search-input" id="search-courses" placeholder="🔍 Поиск предмета..." oninput="filterCatalogList('search-courses', 'catalog-course-item')">
+                        <div class="scroll-container border border-secondary p-2 rounded" id="catalog-course-filters"></div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <button class="btn btn-sm btn-outline-secondary w-100 me-1" onclick="catalogSelectAllCourses(true)">Выбрать все</button>
+                            <button class="btn btn-sm btn-outline-secondary w-100 ms-1" onclick="catalogSelectAllCourses(false)">Сбросить</button>
+                        </div>
+                    </div>
+
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <h6 class="text-white">Преподаватели</h6>
+                        <input type="text" class="search-input" id="search-teachers" placeholder="🔍 Поиск преподавателя..." oninput="filterCatalogList('search-teachers', 'catalog-teacher-item')">
+                        <div class="scroll-container border border-secondary p-2 rounded" id="catalog-teacher-filters">
+                            <p class="text-muted small">Выберите предметы выше</p>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <button class="btn btn-sm btn-outline-secondary w-100 me-1" onclick="catalogSelectAllTeachers(true)">Выбрать все</button>
+                            <button class="btn btn-sm btn-outline-secondary w-100 ms-1" onclick="catalogSelectAllTeachers(false)">Сбросить</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================ -->
+                <!-- РЕЖИМ 2: МОИ ПРЕДМЕТЫ (CARDS)-->
+                <!-- ============================ -->
+                <div id="view-cards" class="d-none" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="m-0 text-white">Выбранное</h6>
+                        <button class="btn btn-sm btn-outline-danger" onclick="cardsClearAll()" title="Очистить всё">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+                    
+                    <button class="btn btn-primary w-100 mb-3 fw-bold" onclick="openAddCourseModal()">
+                        <i class="bi bi-plus-lg"></i> Добавить предмет
+                    </button>
+
+                    <div class="scroll-container" id="cards-container">
+                        <div id="empty-state" class="text-center text-muted mt-5">
+                            <i class="bi bi-funnel" style="font-size: 2rem;"></i>
+                            <p class="mt-2 small">Вы не добавили ни одного предмета. Нажмите кнопку выше.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ОБЩИЕ КНОПКИ ДЛЯ ОБОИХ РЕЖИМОВ -->
+                <div class="border-top border-secondary pt-3 mt-2 d-flex flex-column gap-2 flex-shrink-0">
+                <button class="btn btn-sm btn-outline-warning" onclick="recheckTeachersAdmin()">
+                    <i class="bi bi-magic"></i> Перепроверить преподавателей
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="new bootstrap.Modal(document.getElementById('addTeacherModal')).show()">
+                    <i class="bi bi-person-plus"></i> Новый преподаватель
+                </button>
+                <button class="btn btn-sm btn-outline-info" onclick="syncRecordings()">
+                    <i class="bi bi-arrow-repeat"></i> Подтянуть записи (KTalk)
+                </button>
+                
+                <!-- НОВАЯ КНОПКА ТОТАЛЬНОЙ СИНХРОНИЗАЦИИ -->
+                <button class="btn btn-sm btn-outline-danger mt-3" onclick="runTotalSyncAdmin()">
+                    <i class="bi bi-cloud-arrow-down-fill"></i> Тотальная синхронизация (30 дн.)
+                </button>
+
+                <div id="sync-recordings-log" class="text-info small d-none text-start p-2 rounded" style="font-family: monospace; background-color: #000; max-height: 120px; overflow-y: auto;"></div>
+            </div>
+
+            </div>
+        </div>
+
+        <!-- Календарь -->
+        <div class="col-md-9">
+            <div id='calendar'></div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= МОДАЛКИ ================= -->
+
+<!-- Модалка Добавления предмета (для Режима 2) -->
+<div class="modal fade" id="addCourseModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title">Добавить предмет</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label class="form-label text-warning small fw-bold">1. Направление</label>
+            <select class="form-select bg-dark text-white border-secondary" id="select-track" onchange="renderYearsSelect()"></select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-info small fw-bold">2. Курс</label>
+            <select class="form-select bg-dark text-white border-secondary" id="select-year" onchange="renderCoursesSelect()"></select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-primary small fw-bold">3. Предмет</label>
+            <select class="form-select bg-dark text-white border-primary" id="select-course"></select>
+            <div id="no-courses-msg" class="text-danger small mt-1 d-none">Все предметы из этой категории уже добавлены.</div>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-primary" id="btn-add-course" onclick="submitAddCourse()">Добавить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка настроек предмета (Общая) -->
+<div class="modal fade" id="courseSettingsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title">Настройки предмета</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-0">
+        <input type="hidden" id="cs-id">
+        <p class="text-muted small mb-3 border-bottom pb-2" id="cs-original-name"></p>
+        
+        <div class="mb-3">
+            <label class="form-label text-primary small fw-bold">Ссылка на канал в TiMe</label>
+            <input type="text" class="form-control bg-dark text-white border-secondary" id="cs-link">
+        </div>
+        
+        <div class="d-grid mt-2">
+            <button class="btn btn-outline-secondary btn-sm" id="btn-scan" onclick="scanCourseNames()">
+                <span id="scan-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                <span id="scan-text">Шаг 1: Найти названия (Календари студентов)</span>
+            </button>
+        </div>
+        
+        <div id="detected-names-area" class="mt-2 mb-3 p-2 border border-secondary rounded d-none" style="background: #1e1e1e; max-height: 200px; overflow-y: auto;">
+            <p class="small text-success mb-1">Кликните на название вашей пары:</p>
+            <div id="detected-names-list" class="d-flex flex-wrap gap-1"></div>
+        </div>
+
+        <div class="mb-3 mt-3">
+            <label class="form-label text-warning small fw-bold">Фраза для фильтрации (в базе)</label>
+            <input type="text" class="form-control bg-dark text-white border-warning" id="cs-query">
+        </div>
+        
+        <div class="d-grid mt-2">
+            <button class="btn btn-outline-info" id="btn-extract" onclick="extractCourseLinks()">
+                <span id="extract-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                <span id="extract-text">Шаг 2: Выкачать ссылки и почты</span>
+            </button>
+        </div>
+        
+        <div id="sync-log"></div>
+      </div>
+      <div class="modal-footer border-top-0 mt-3">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-success" onclick="saveCourseSettings()">Сохранить настройки</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка просмотра события (Общая) -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title" id="modalTitle">Название пары</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1"><strong>🕒 Время:</strong> <span id="modalTime"></span></p>
+        <p class="mb-1"><strong>👨‍🏫 Преподаватель:</strong> <span id="modalTeacher"></span></p>
+        <p class="mb-1"><strong>👥 Кол-во:</strong> <span id="modalAttendees"></span></p>
+        <hr>
+        <p class="mb-1"><strong>🔗 Ссылка / Описание:</strong></p>
+        <div id="modalLink" class="link-text bg-dark p-3 rounded border border-secondary mb-3" style="word-wrap: break-word;"></div>
+        <p class="mb-1"><strong>🎥 Запись пары (КТолк):</strong></p>
+        <div id="modalRecording" class="bg-dark p-2 rounded border border-secondary mb-3"></div>
+        <p class="mb-1"><strong>🧑‍🎓 Участники (сырые почты):</strong></p>
+        <div id="modalAttendeesList" class="bg-dark p-2 rounded border border-secondary text-secondary" style="max-height: 120px; overflow-y: auto; font-size: 0.8rem; font-family: monospace;"></div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка добавления преподавателя (Общая) -->
+<div class="modal fade" id="addTeacherModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title">Добавить преподавателя</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label class="form-label text-white small">ФИО (как в расписании)</label>
+            <input type="text" class="form-control bg-dark text-white border-secondary" id="new-teacher-name">
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-white small">Почта (@edu.centraluniversity.ru)</label>
+            <input type="email" class="form-control bg-dark text-white border-secondary" id="new-teacher-email">
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-success" onclick="submitNewTeacher()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // ==========================================
+    // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И ИНИЦИАЛИЗАЦИЯ
+    // ==========================================
+    let calendar;
+    const eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+    const settingsModal = new bootstrap.Modal(document.getElementById('courseSettingsModal'));
+    const addCourseModal = new bootstrap.Modal(document.getElementById('addCourseModal'));
+    
+    let allCourses = []; 
+    let currentMode = localStorage.getItem('uni_ui_mode') || 'list'; // 'list' или 'cards'
+    
+    // Состояние для Режима 1 (Каталог)
+    let catalogActiveTeachers = {}; 
+    
+    // Состояние для Режима 2 (Карточки)
+    let cardsSelectedState = JSON.parse(localStorage.getItem('uni_cards_filters')) || {};
+
+    document.addEventListener('DOMContentLoaded', async function() {
+        // Восстанавливаем переключатель
+        document.getElementById(`mode-${currentMode}`).checked = true;
+        
+        await fetchAllCourses();
+        switchMode(currentMode, false); // false = не рефрешить календарь, он еще не создан
+        initCalendar();
+    });
+
+    async function fetchAllCourses() {
+        const res = await fetch('/api/courses');
+        allCourses = await res.json();
+    }
+
+    function getCourseQuery(course) {
+        if (!course.search_query || course.search_query === 'null') return course.name;
+        return course.search_query;
+    }
+
+    // ==========================================
+    // УПРАВЛЕНИЕ РЕЖИМАМИ (UI MODE)
+    // ==========================================
+    function switchMode(mode, refreshCalendar = true) {
+        currentMode = mode;
+        localStorage.setItem('uni_ui_mode', mode);
+
+        document.getElementById('view-list').classList.toggle('d-none', mode !== 'list');
+        document.getElementById('view-list').style.display = mode === 'list' ? 'flex' : 'none';
+        
+        document.getElementById('view-cards').classList.toggle('d-none', mode !== 'cards');
+        document.getElementById('view-cards').style.display = mode === 'cards' ? 'flex' : 'none';
+
+        if (mode === 'list') {
+            initCatalogUI();
+        } else {
+            initCardsUI();
+        }
+
+        if (refreshCalendar && calendar) {
+            calendar.refetchEvents();
+        }
+    }
+
+
+    // ==========================================
+    // РЕЖИМ 1: КАТАЛОГ (LIST)
+    // ==========================================
+    function initCatalogUI() {
+        const container = document.getElementById('catalog-course-filters');
+        container.innerHTML = ''; 
+        
+        const grouped = {};
+        allCourses.forEach(c => {
+            const track = c.track || 'Другое';
+            const year = c.course_year || 'Без курса';
+            if (!grouped[track]) grouped[track] = {};
+            if (!grouped[track][year]) grouped[track][year] = [];
+            grouped[track][year].push(c);
+        });
+
+        for (const [track, years] of Object.entries(grouped)) {
+            const trackDiv = document.createElement('div');
+            trackDiv.className = 'catalog-track-group mb-2';
+            trackDiv.innerHTML = `<h6 class="text-warning border-bottom border-warning pb-1 mb-1 mt-2">${track}</h6>`;
+            
+            for (const [year, yearCourses] of Object.entries(years)) {
+                const yearDiv = document.createElement('div');
+                yearDiv.className = 'catalog-year-group ms-2 mb-1';
+                const yearLabel = (year === 'Без курса' || year.toLowerCase().includes('курс')) ? year : `${year} курс`;
+                yearDiv.innerHTML = `<div class="text-info small mb-1 fw-bold">${yearLabel}</div>`;
+                
+                yearCourses.forEach(course => {
+                    const div = document.createElement('div');
+                    div.className = 'catalog-course-item form-check ms-2 d-flex align-items-start justify-content-between mb-1'; 
+                    
+                    const queryValue = getCourseQuery(course);
+                    const displayQuery = (course.search_query === course.name) ? 'Точное совпадение' : 
+                                         (!course.search_query || course.search_query === 'null') ? 'Авто-поиск' : `"${course.search_query}"`;
+
+                    const safeName = course.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const safeQuery = queryValue.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const safeLink = (course.link || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                    div.innerHTML = `
+                        <div class="w-100">
+                            <input class="form-check-input catalog-course-checkbox" type="checkbox" value="${safeQuery}" data-name="${safeName}" id="ccheck${course.id}" checked onchange="catalogUpdateTeachers()">
+                            <label class="form-check-label course-label" for="ccheck${course.id}">
+                                <strong>${course.name}</strong>
+                                <span class="course-query">${displayQuery}</span>
+                            </label>
+                        </div>
+                        <button class="settings-btn flex-shrink-0 ms-1" title="Настройки" onclick="openSettings(${course.id}, '${safeName}', '${safeQuery}', '${safeLink}')">⚙️</button>
+                    `;
+                    yearDiv.appendChild(div);
+                });
+                trackDiv.appendChild(yearDiv);
+            }
+            container.appendChild(trackDiv);
+        }
+        catalogUpdateTeachers();
+    }
+
+    async function catalogUpdateTeachers() {
+        const checkboxes = Array.from(document.querySelectorAll('.catalog-course-checkbox:checked'));
+        const selected = checkboxes.map(cb => ({ query: cb.value, name: cb.dataset.name }));
+        const container = document.getElementById('catalog-teacher-filters');
+
+        if (selected.length === 0) {
+            container.innerHTML = '<p class="text-muted small">Выберите предметы выше</p>';
+            if(currentMode === 'list' && calendar) calendar.refetchEvents();
+            return;
+        }
+
+        let url = new URL('/api/teachers', window.location.origin);
+        selected.forEach(c => url.searchParams.append('queries', c.query));
+
+        const res = await fetch(url);
+        const teachersByQuery = await res.json();
+        
+        container.innerHTML = '';
+
+        selected.forEach(course => {
+            const teachers = teachersByQuery[course.query] || [];
+            if (teachers.length === 0) return;
+            
+            const header = document.createElement('h6');
+            header.className = 'mt-2 mb-1 text-info small border-bottom border-secondary pb-1';
+            header.innerText = course.name;
+            container.appendChild(header);
+            
+            if (!catalogActiveTeachers[course.query]) catalogActiveTeachers[course.query] = new Set();
+
+            teachers.forEach((teacher, idx) => {
+                const div = document.createElement('div');
+                div.className = 'form-check mb-1 catalog-teacher-item'; 
+                const safeT = teacher.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                
+                if (catalogActiveTeachers[course.query].size === 0 && !catalogActiveTeachers[course.query].has(teacher)) {
+                    catalogActiveTeachers[course.query].add(teacher);
+                }
+                const isChecked = catalogActiveTeachers[course.query].has(teacher);
+
+                div.innerHTML = `
+                    <input class="form-check-input catalog-teacher-checkbox" type="checkbox" value="${safeT}" data-query="${course.query}" id="tcheck_${course.query}_${idx}" ${isChecked ? 'checked' : ''} onchange="catalogToggleTeacher(this)">
+                    <label class="form-check-label course-label" for="tcheck_${course.query}_${idx}">${teacher}</label>
+                `;
+                container.appendChild(div);
+            });
+        });
+
+        if(currentMode === 'list' && calendar) calendar.refetchEvents();
+    }
+
+    function catalogToggleTeacher(cb) {
+        const query = cb.getAttribute('data-query');
+        if (cb.checked) catalogActiveTeachers[query].add(cb.value);
+        else catalogActiveTeachers[query].delete(cb.value);
+        if(currentMode === 'list' && calendar) calendar.refetchEvents();
+    }
+
+    function filterCatalogList(inputId, itemClassName) {
+        const query = document.getElementById(inputId).value.toLowerCase();
+        const items = document.querySelectorAll('.' + itemClassName);
+        items.forEach(item => {
+            const label = item.querySelector('label') ? item.querySelector('label').innerText.toLowerCase() : item.innerText.toLowerCase();
+            item.classList.toggle('d-none', !label.includes(query));
+        });
+        
+        if (inputId === 'search-courses') {
+            document.querySelectorAll('.catalog-track-group').forEach(trackDiv => {
+                let trackVis = false;
+                trackDiv.querySelectorAll('.catalog-year-group').forEach(yearDiv => {
+                    let yearVis = Array.from(yearDiv.querySelectorAll('.catalog-course-item')).some(i => !i.classList.contains('d-none'));
+                    yearDiv.style.display = yearVis ? 'block' : 'none';
+                    if(yearVis) trackVis = true;
+                });
+                trackDiv.style.display = trackVis ? 'block' : 'none';
+            });
+        }
+    }
+
+    function catalogSelectAllCourses(check) {
+        document.querySelectorAll('.catalog-course-item:not(.d-none) .catalog-course-checkbox').forEach(cb => cb.checked = check);
+        catalogUpdateTeachers(); 
+    }
+
+    function catalogSelectAllTeachers(check) {
+        document.querySelectorAll('.catalog-teacher-item:not(.d-none) .catalog-teacher-checkbox').forEach(cb => {
+            cb.checked = check;
+            const query = cb.getAttribute('data-query');
+            if (check) catalogActiveTeachers[query].add(cb.value);
+            else catalogActiveTeachers[query].delete(cb.value);
+        });
+        if(currentMode === 'list' && calendar) calendar.refetchEvents();
+    }
+
+
+    // ==========================================
+    // РЕЖИМ 2: МОИ ПРЕДМЕТЫ (CARDS)
+    // ==========================================
+    let cardsAvailableTeachers = {};
+
+    async function initCardsUI() {
+        const activeIds = Object.keys(cardsSelectedState);
+        if (activeIds.length === 0) {
+            drawCardsUI();
+            return;
+        }
+
+        let url = new URL('/api/teachers', window.location.origin);
+        let needsFetch = false;
+
+        // 1. Ищем только те предметы, преподавателей которых мы ЕЩЕ НЕ загружали
+        activeIds.forEach(id => {
+            const course = allCourses.find(c => c.id == id);
+            if (course) {
+                const query = getCourseQuery(course);
+                // Если этого запроса еще нет в нашем кэше cardsAvailableTeachers
+                if (!cardsAvailableTeachers[query]) {
+                    url.searchParams.append('queries', query);
+                    needsFetch = true;
+                }
+            }
+        });
+
+        // 2. Если есть новые предметы, скачиваем ТОЛЬКО ИХ преподавателей
+        if (needsFetch) {
+            try {
+                const res = await fetch(url);
+                const newTeachers = await res.json();
+                // Добавляем новые данные в кэш (не затирая старые)
+                Object.assign(cardsAvailableTeachers, newTeachers);
+            } catch (e) {
+                console.error("Ошибка загрузки преподавателей:", e);
+            }
+        }
+
+        // 3. Выбираем всех преподавателей для только что добавленных предметов
+        let stateChanged = false;
+        activeIds.forEach(id => {
+            if (cardsSelectedState[id] === null) {
+                const course = allCourses.find(c => c.id == id);
+                if (course) {
+                    const query = getCourseQuery(course);
+                    cardsSelectedState[id] = cardsAvailableTeachers[query] ? [...cardsAvailableTeachers[query]] : [];
+                } else {
+                    cardsSelectedState[id] = [];
+                }
+                stateChanged = true;
+            }
+        });
+
+        if (stateChanged) {
+            localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        }
+
+        // 4. Отрисовываем карточки ОДИН раз
+        drawCardsUI();
+    }
+
+    function drawCardsUI() {
+        const container = document.getElementById('cards-container');
+        let emptyState = document.getElementById('empty-state');
+        
+        // Подстраховка: если прошлый код уже успел случайно удалить заглушку, создаем её заново
+        if (!emptyState) {
+            emptyState = document.createElement('div');
+            emptyState.id = 'empty-state';
+            emptyState.className = 'text-center text-muted mt-5';
+            emptyState.innerHTML = '<i class="bi bi-funnel" style="font-size: 2rem;"></i><p class="mt-2 small">Вы не добавили ни одного предмета. Нажмите кнопку выше.</p>';
+            container.appendChild(emptyState);
+        }
+
+        const activeIds = Object.keys(cardsSelectedState);
+
+        // БЕЗОПАСНАЯ ОЧИСТКА: удаляем только карточки предметов, не трогая emptyState
+        const currentCards = container.querySelectorAll('.active-filter-card');
+        currentCards.forEach(card => card.remove());
+
+        // Если предметов нет, показываем заглушку и уходим
+        if (activeIds.length === 0) {
+            emptyState.classList.remove('d-none');
+            return;
+        }
+
+        // Прячем заглушку, так как предметы есть
+        emptyState.classList.add('d-none');
+
+        // Отрисовываем карточки
+        activeIds.forEach(id => {
+            const course = allCourses.find(c => c.id == id);
+            if (!course) return;
+
+            const query = getCourseQuery(course);
+            const availableT = cardsAvailableTeachers[query] || [];
+            const selectedT = cardsSelectedState[id] || [];
+
+            const safeName = course.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeQuery = query.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeLink = (course.link || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+            const card = document.createElement('div');
+            card.className = 'active-filter-card';
+            
+            let teachersHtml = availableT.length === 0 ? 
+                '<div class="text-muted small">Нет известных преподавателей. Перейдите в настройки (⚙️).</div>' : 
+                availableT.map((t, idx) => {
+                    const safeT = t.replace(/"/g, '&quot;');
+                    return `
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" id="ct_${id}_${idx}" value="${safeT}"
+                            ${selectedT.includes(t) ? 'checked' : ''} onchange="cardsToggleTeacher('${id}', this.value, this.checked)">
+                        <label class="form-check-label teacher-check-label w-100" for="ct_${id}_${idx}">${t}</label>
+                    </div>
+                `}).join('') + `
+                <div class="mt-2 d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm flex-fill" style="font-size:0.7rem; padding: 2px;" onclick="cardsSelectAllT('${id}', true)">Все</button>
+                    <button class="btn btn-outline-secondary btn-sm flex-fill" style="font-size:0.7rem; padding: 2px;" onclick="cardsSelectAllT('${id}', false)">Сброс</button>
+                </div>`;
+
+            card.innerHTML = `
+                <div class="filter-card-header">
+                    <div>
+                        <div class="filter-card-title">${course.name}</div>
+                        <div class="filter-card-meta">${course.track || 'Другое'} • ${course.course_year || 'Без курса'}</div>
+                    </div>
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        <button class="btn-icon" title="Настройки" onclick="openSettings('${course.id}', '${safeName}', '${safeQuery}', '${safeLink}')"><i class="bi bi-gear-fill"></i></button>
+                        <button class="btn-icon text-danger" title="Удалить" onclick="cardsRemoveCourse('${id}')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+                <div class="filter-card-body">${teachersHtml}</div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function cardsToggleTeacher(courseId, teacherName, isChecked) {
+        if (!cardsSelectedState[courseId]) cardsSelectedState[courseId] = [];
+        if (isChecked && !cardsSelectedState[courseId].includes(teacherName)) cardsSelectedState[courseId].push(teacherName);
+        else if (!isChecked) cardsSelectedState[courseId] = cardsSelectedState[courseId].filter(t => t !== teacherName);
+        
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+    }
+
+    function cardsSelectAllT(courseId, checkAll) {
+        // Обновляем состояние в памяти
+        const query = getCourseQuery(allCourses.find(c => c.id == courseId));
+        const available = cardsAvailableTeachers[query] || [];
+        cardsSelectedState[courseId] = checkAll ? [...available] : [];
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        
+        // ИСПРАВЛЕНО: Умное обновление DOM без вызова drawCardsUI() (предотвращает сброс скролла и лаги)
+        const checkboxes = document.querySelectorAll(`input[id^="ct_${courseId}_"]`);
+        checkboxes.forEach(cb => {
+            cb.checked = checkAll;
+        });
+
+        // Отправляем команду перерисовать календарь
+        if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+    }
+
+    function cardsRemoveCourse(id) {
+        delete cardsSelectedState[id];
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        initCardsUI();
+        if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+    }
+
+    function cardsClearAll() {
+        if(confirm("Удалить все предметы из расписания?")) {
+            cardsSelectedState = {};
+            localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+            initCardsUI();
+            if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+        }
+    }
+
+    // -- ДОБАВЛЕНИЕ ПРЕДМЕТА (МОДАЛКА МАСТЕР) --
+    function openAddCourseModal() {
+        renderTracksSelect();
+        addCourseModal.show();
+    }
+
+    function renderTracksSelect() {
+        const available = allCourses.filter(c => !(c.id in cardsSelectedState));
+        const select = document.getElementById('select-track');
+        select.innerHTML = [...new Set(available.map(c => c.track || 'Другое'))].sort().map(t => `<option value="${t}">${t}</option>`).join('');
+        renderYearsSelect();
+    }
+
+    function renderYearsSelect() {
+        const track = document.getElementById('select-track').value;
+        const available = allCourses.filter(c => !(c.id in cardsSelectedState) && (c.track || 'Другое') === track);
+        const select = document.getElementById('select-year');
+        select.innerHTML = [...new Set(available.map(c => c.course_year || 'Без курса'))].sort().map(y => `<option value="${y}">${y}</option>`).join('');
+        renderCoursesSelect();
+    }
+
+    function renderCoursesSelect() {
+        const track = document.getElementById('select-track').value;
+        const year = document.getElementById('select-year').value;
+        const available = allCourses.filter(c => !(c.id in cardsSelectedState) && (c.track || 'Другое') === track && (c.course_year || 'Без курса') === year)
+                                    .sort((a, b) => a.name.localeCompare(b.name));
+        
+        const select = document.getElementById('select-course');
+        const btn = document.getElementById('btn-add-course');
+        const msg = document.getElementById('no-courses-msg');
+
+        if (available.length === 0) {
+            select.innerHTML = ''; select.disabled = true; btn.disabled = true; msg.classList.remove('d-none');
+        } else {
+            select.innerHTML = available.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            select.disabled = false; btn.disabled = false; msg.classList.add('d-none');
+        }
+    }
+
+    async function submitAddCourse() {
+        const id = document.getElementById('select-course').value;
+        if (!id) return;
+
+        // Закрываем модалку сразу, чтобы пользователь видел реакцию
+        addCourseModal.hide();
+
+        // Помечаем предмет как новый (null), чтобы initCardsUI подобрал для него данные
+        cardsSelectedState[id] = null; 
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        
+        // СТРОГО ЖДЕМ завершения формирования данных и отрисовки интерфейса
+        await initCardsUI(); 
+        
+        // ТОЛЬКО ПОСЛЕ загрузки данных отправляем запрос на обновление календаря
+        if(currentMode === 'cards' && calendar) {
+            calendar.refetchEvents();
+        }
+    }
+
+
+    // ==========================================
+    // КАЛЕНДАРЬ FULLCALENDAR
+    // ==========================================
+    function initCalendar() {
+        calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+            initialView: 'timeGridWeek', 
+            locale: 'ru', 
+            firstDay: 1,
+            slotMinTime: '09:00:00', 
+            slotMaxTime: '22:00:00', 
+            allDaySlot: false, 
+            nowIndicator: true,
+            
+            // ФОРМАТ ЗАГОЛОВКОВ И ВРЕМЕНИ СЛЕВА (9:00 вместо 9)
+            dayHeaderFormat: { weekday: 'short', day: 'numeric' }, 
+            slotLabelFormat: { hour: 'numeric', minute: '2-digit', omitZeroMinute: false }, 
+            
+            headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
+            
+            // Кастомный рендер содержимого карточки (Яндекс стиль)
+            eventContent: function(arg) {
+                const startTime = arg.event.start.toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
+                const endTime = arg.event.end ? arg.event.end.toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'}) : '';
+                const timeStr = endTime ? `${startTime} – ${endTime}` : startTime;
+                
+                // Берем оригинальное название ровно в том виде, в котором оно пришло (вместе с системным эмодзи)
+                let originalTitle = arg.event.title || '';
+
+                let customHtml = `
+                    <div class="ya-time">${timeStr}</div>
+                    <div class="ya-title-container">
+                        <span class="ya-title-text">${originalTitle}</span>
+                    </div>
+                `;
+                return { html: customHtml };
+            },
+
+            events: function(info, success, failure) {
+                // ВОССТАНОВЛЕНА ЛОГИКА ДЛЯ РЕЖИМА "МОЁ РАСПИСАНИЕ"
+                if (currentMode === 'personal') {
+                    success(typeof personalEvents !== 'undefined' ? personalEvents : []);
+                    return;
+                }
+
+                const filters = [];
+                
+                if (currentMode === 'list') {
+                    document.querySelectorAll('.catalog-course-checkbox:checked').forEach(cb => {
+                        const query = cb.value;
+                        const teachers = Array.from(document.querySelectorAll(`.catalog-teacher-checkbox[data-query="${query}"]:checked`)).map(tcb => tcb.value);
+                        if (teachers.length > 0) filters.push({ query, teachers });
+                    });
+                } else if (currentMode === 'cards') {
+                    for (const [id, teachers] of Object.entries(cardsSelectedState)) {
+                        if (teachers && teachers.length > 0) {
+                            const course = allCourses.find(c => c.id == id);
+                            if (course) filters.push({ query: getCourseQuery(course), teachers });
+                        }
+                    }
+                }
+
+                if (filters.length === 0) { success([]); return; }
+
+                // Поддержка и authFetch (если вы используете первую версию файла с авторизацией), и обычного fetch
+                const fetchFunction = (typeof authFetch === 'function') ? authFetch : fetch;
+
+                fetchFunction('/api/events', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start: info.startStr, end: info.endStr, filters })
+                }).then(r => r.json()).then(data => success(data)).catch(err => failure(err));
+            },
+            eventClick: function(info) {
+                const p = info.event.extendedProps;
+                const d = info.event.start;
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+                document.getElementById('modalTitle').innerText = info.event.title;
+                document.getElementById('modalTime').innerText = `${info.event.start.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'})} — ${info.event.end ? info.event.end.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}) : ''} (${dateStr})`;
+                document.getElementById('modalAttendees').innerText = p.total_attendees || '0';
+                document.getElementById('modalTeacher').innerText = p.teacher_names || 'Не определен';
+                
+                let link = p.link_description || 'Нет ссылки';
+                document.getElementById('modalLink').innerHTML = link.startsWith('http') ? `<a href="${link}" target="_blank">${link}</a>` : link;
+
+                const recBox = document.getElementById('modalRecording');
+                const rec = (p.recordings || {})[dateStr];
+                
+                // Проверка на наличие модалки для ручного сохранения (из второго файла)
+                const templateEventId = p.template_event_id || '';
+                
+                if (rec && rec.url && rec.url !== 'null') {
+                    recBox.innerHTML = `<a href="${rec.url}" class="btn btn-sm btn-primary w-100" target="_blank">▶️ Смотреть видео</a>`;
+                } else {
+                    recBox.innerHTML = `
+                        <p class="text-warning small mb-2">Запись не найдена.</p>
+                        ${templateEventId ? `
+                        <div class="input-group input-group-sm d-none">
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="manualRecordingUrl" placeholder="Вставьте ссылку...">
+                            <button class="btn btn-outline-success" onclick="saveManualRecording('${templateEventId}', '${dateStr}')">Сохранить</button>
+                        </div>` : ''}
+                    `;
+                }
+                
+                const emails = p.attendees_emails || '';
+                document.getElementById('modalAttendeesList').innerHTML = emails ? emails.split(',').map(e => `<div>${e.trim()}</div>`).join('') : 'Нет данных';
+                
+                eventModal.show();
+            }
+        });
+        calendar.render();
+    }
+
+    // ==========================================
+    // ОБЩИЕ ФУНКЦИИ (Настройки, KTalk, Преподы)
+    // ==========================================
+    function openSettings(id, name, query, link) {
+        document.getElementById('cs-id').value = id;
+        document.getElementById('cs-original-name').innerText = name;
+        document.getElementById('cs-query').value = (query === name || query === 'null') ? '' : query;
+        document.getElementById('cs-link').value = link;
+        document.getElementById('sync-log').style.display = 'none';
+        document.getElementById('sync-log').innerHTML = '';
+        document.getElementById('detected-names-area').classList.add('d-none');
+        document.getElementById('btn-scan').className = 'btn btn-outline-secondary btn-sm';
+        document.getElementById('scan-text').innerText = 'Шаг 1: Найти названия (Календари студентов)';
+        document.getElementById('btn-extract').className = 'btn btn-outline-info';
+        document.getElementById('extract-text').innerText = 'Шаг 2: Выкачать ссылки и почты';
+        settingsModal.show();
+    }
+
+    async function saveCourseSettings() {
+        await fetch(`/api/courses/${document.getElementById('cs-id').value}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ search_query: document.getElementById('cs-query').value, link: document.getElementById('cs-link').value })
+        });
+        settingsModal.hide();
+        await fetchAllCourses();
+        if(currentMode === 'list') initCatalogUI(); else initCardsUI();
+    }
+
+    async function scanCourseNames() {
+        const id = document.getElementById('cs-id').value;
+        const btn = document.getElementById('btn-scan');
+        const spin = document.getElementById('scan-spinner');
+        const text = document.getElementById('scan-text');
+        const log = document.getElementById('sync-log');
+        const list = document.getElementById('detected-names-list');
+
+        await fetch(`/api/courses/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ search_query: document.getElementById('cs-query').value, link: document.getElementById('cs-link').value }) });
+
+        btn.disabled = true; spin.classList.remove('d-none'); text.innerText = 'Сканируем...';
+        log.style.display = 'block'; log.innerHTML = ''; document.getElementById('detected-names-area').classList.add('d-none');
+
+        try {
+            const response = await fetch(`/api/courses/${id}/scan`, { method: 'POST' });
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buf = ""; 
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, {stream: true}); 
+                const lines = buf.split('\n'); buf = lines.pop(); 
+                for (let line of lines) {
+                    if (!line.trim()) continue;
+                    const p = JSON.parse(line);
+                    if (p.type === "progress") { log.innerHTML += `<div>${p.data}</div>`; log.scrollTop = log.scrollHeight; }
+                    else if (p.type === "error") { log.innerHTML += `<div class="text-danger">❌ ${p.data}</div>`; break; }
+                    else if (p.type === "done") {
+                        list.innerHTML = p.data.names.map(n => `<span class="badge bg-secondary name-badge border border-secondary p-2" onclick="document.getElementById('cs-query').value='${n.split(',')[0].trim()}'">${n}</span>`).join('');
+                        document.getElementById('detected-names-area').classList.remove('d-none');
+                    }
+                }
+            }
+        } catch (e) { log.innerHTML += `<div class="text-danger">❌ Ошибка сети</div>`; } 
+        finally { spin.classList.add('d-none'); text.innerText = 'Обновить список'; btn.disabled = false; }
+    }
+
+    async function extractCourseLinks() {
+        const id = document.getElementById('cs-id').value;
+        const q = document.getElementById('cs-query').value.trim();
+        const btn = document.getElementById('btn-extract');
+        const spin = document.getElementById('extract-spinner');
+        const text = document.getElementById('extract-text');
+        const log = document.getElementById('sync-log');
+
+        if (!q) return alert("Выберите фразу!");
+
+        await fetch(`/api/courses/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ search_query: q, link: document.getElementById('cs-link').value }) });
+
+        btn.disabled = true; spin.classList.remove('d-none'); text.innerText = 'Выгружаем...'; log.style.display = 'block'; log.innerHTML = '';
+
+        try {
+            const response = await fetch(`/api/courses/${id}/extract?search_query=${encodeURIComponent(q)}`, { method: 'POST' });
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buf = ""; 
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, {stream: true}); 
+                const lines = buf.split('\n'); buf = lines.pop(); 
+                for (let line of lines) {
+                    if (!line.trim()) continue;
+                    const p = JSON.parse(line);
+                    if (p.type === "progress") { log.innerHTML += `<div><span style="color:#0ff;">[Выгрузка]</span> ${p.data}</div>`; log.scrollTop = log.scrollHeight; }
+                    else if (p.type === "error") { btn.classList.replace('btn-outline-info', 'btn-danger'); log.innerHTML += `<div class="text-danger">❌ ${p.data}</div>`; break; }
+                    else if (p.type === "done") {
+                        btn.classList.replace('btn-outline-info', 'btn-success'); text.innerText = `Успешно (${p.data.count} шт.)`;
+                        await fetchAllCourses();
+                        if(currentMode === 'list') initCatalogUI(); else initCardsUI();
+                    }
+                }
+            }
+        } catch (e) { log.innerHTML += `<div class="text-danger">❌ Ошибка</div>`; } 
+        finally { spin.classList.add('d-none'); btn.disabled = false; }
+    }
+
+    async function syncRecordings() {
+        const log = document.getElementById('sync-recordings-log');
+        log.classList.remove('d-none'); log.innerText = 'Синхронизируем...';
+        try {
+            const res = await fetch(`/api/recordings/sync`, { method: 'POST' });
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buf = "";
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, {stream: true});
+                const lines = buf.split('\n'); buf = lines.pop();
+                for (let line of lines) {
+                    if (!line.trim()) continue;
+                    const p = JSON.parse(line);
+                    if (p.type === "done") { log.innerText = `✅ Привязано новых записей: ${p.data.count}`; if(calendar) calendar.refetchEvents(); setTimeout(()=>log.classList.add('d-none'),5000); }
+                    else if (p.type === "progress") { log.innerText = p.data.replace(/<[^>]*>?/gm, ''); }
+                    else if (p.type === "error") { log.innerText = `❌ ${p.data}`; setTimeout(()=>log.classList.add('d-none'),5000); }
+                }
+            }
+        } catch (e) { log.innerText = '❌ Ошибка сети'; setTimeout(()=>log.classList.add('d-none'),3000); }
+    }
+
+    async function saveManualRecording(eventId, dateStr) {
+        const url = document.getElementById('manualRecordingUrl').value;
+        if (!url) return;
+        await fetch('/api/recordings/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ yandex_event_id: eventId, recording_date: dateStr, recording_url: url }) });
+        eventModal.hide(); calendar.refetchEvents();
+    }
+
+    async function submitNewTeacher() {
+        const email = document.getElementById('new-teacher-email').value; const name = document.getElementById('new-teacher-name').value;
+        if (!email || !name) return alert("Заполните оба поля!");
+        const res = await fetch('/api/teachers', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email, full_name: name}) });
+        const data = await res.json();
+        if(data.status === 'ok') {
+            bootstrap.Modal.getInstance(document.getElementById('addTeacherModal')).hide();
+            document.getElementById('new-teacher-email').value = ''; document.getElementById('new-teacher-name').value = '';
+            alert('Преподаватель добавлен! Зайдите в настройки предмета и нажмите Шаг 2.');
+        } else alert('Ошибка: ' + data.message);
+    }
+
+    async function recheckTeachersAdmin() {
+        if(!confirm("Запустить массовую перепроверку всех пар в базе?")) return;
+        
+        const log = document.getElementById('sync-recordings-log');
+        log.classList.remove('d-none'); 
+        log.innerText = 'Анализ базы данных...';
+        
+        try {
+            const res = await fetch('/api/admin/recheck_teachers', { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.status === 'ok') {
+                log.innerText = `✅ Успешно! Обновлено пар: ${data.updated}`;
+                if(calendar) calendar.refetchEvents();
+            } else {
+                log.innerText = `❌ Ошибка: ${data.message}`;
+            }
+        } catch(e) {
+            log.innerText = `❌ Ошибка сети`;
+        }
+        
+        setTimeout(() => log.classList.add('d-none'), 5000);
+    }
+
+    async function runTotalSyncAdmin() {
+        if(!confirm("Запустить полное сканирование календарей на 30 дней вперед?\n\nЭто действие парсит студентов со всех курсов и может занять несколько минут. Не закрывайте страницу!")) return;
+        
+        const log = document.getElementById('sync-recordings-log');
+        log.classList.remove('d-none'); 
+        log.innerHTML = 'Начинаем загрузку...<br>';
+        
+        try {
+            const res = await fetch('/api/admin/total_sync', { method: 'POST' });
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buf = "";
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, {stream: true});
+                const lines = buf.split('\n'); 
+                buf = lines.pop(); // Оставляем неполную строку
+                
+                for (let line of lines) {
+                    if (!line.trim()) continue;
+                    const p = JSON.parse(line);
+                    
+                    if (p.type === "done") { 
+                        log.innerHTML += `<br><span class="text-success">✅ ${p.data.message}</span>`; 
+                        log.scrollTop = log.scrollHeight;
+                        if(calendar) calendar.refetchEvents(); 
+                    }
+                    else if (p.type === "progress") { 
+                        // Добавляем новые логи в конец и прокручиваем вниз
+                        log.innerHTML += `<div>${p.data}</div>`; 
+                        log.scrollTop = log.scrollHeight;
+                    }
+                    else if (p.type === "error") { 
+                        log.innerHTML += `<br><span class="text-danger">❌ ${p.data}</span>`; 
+                        log.scrollTop = log.scrollHeight;
+                    }
+                }
+            }
+        } catch(e) { 
+            log.innerHTML += `<br><span class="text-danger">❌ Ошибка сети</span>`; 
+        }
+    }
+
+
+
+</script>
+
+
+
+</body>
+</html>

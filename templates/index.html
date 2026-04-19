@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="ru" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расписание | ЦУ</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    
+    <style>
+        body { background-color: #1a1a1d; padding-top: 20px; }
+        #calendar { background-color: #222226; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .fc-event { cursor: pointer; border-radius: 4px; padding: 2px 4px; }
+        .fc-timegrid-slot { height: 3em !important; }
+        
+        .sidebar-container { height: calc(100vh - 40px); min-height: 800px; display: flex; flex-direction: column; gap: 15px; }
+        .filter-panel { background-color: #222226; padding: 15px; border-radius: 10px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+        .scroll-container { flex-grow: 1; min-height: 180px; overflow-y: auto; margin-bottom: 10px; padding-right: 5px; }
+                
+        /* Стили Режима 1 (Каталог) */
+        .course-item, .teacher-item { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+        .course-label { font-size: 0.85rem; line-height: 1.2; width: 100%; cursor: pointer;}
+        .course-query { font-size: 0.75rem; color: #adb5bd; display: block; margin-top: 3px; font-style: italic;}
+        .search-input { background-color: #1a1a1d; color: #fff; border: 1px solid #444; border-radius: 5px; padding: 4px 8px; font-size: 0.85rem; margin-bottom: 10px; width: 100%; outline: none;}
+        .search-input:focus { border-color: #0d6efd; }
+        
+        /* Стили Режима 2/3 (Карточки) */
+        .active-filter-card { background-color: #2b2b30; border: 1px solid #444; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+        .filter-card-header { background-color: #333338; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444;}
+        .filter-card-title { font-size: 0.9rem; font-weight: bold; margin: 0; line-height: 1.2; width: 100%;}
+        .filter-card-meta { font-size: 0.7rem; color: #adb5bd; }
+        .filter-card-body { padding: 10px 12px; }
+        .teacher-check-label { font-size: 0.85rem; cursor: pointer; }
+        
+        /* Общие элементы */
+        .settings-btn { background: none; border: none; color: #6c757d; font-size: 1.1rem; padding: 0 5px; cursor: pointer; transition: 0.2s;}
+        .settings-btn:hover { color: #fff; transform: rotate(90deg); }
+        .btn-icon { background: none; border: none; color: #adb5bd; padding: 2px 6px; border-radius: 4px; transition: 0.2s;}
+        .btn-icon:hover { background-color: #444; color: #fff; }
+        .btn-icon.text-danger:hover { background-color: #dc3545; color: #fff; }
+        .link-text a { color: #0d6efd; text-decoration: underline; }
+        .name-badge { cursor: pointer; transition: 0.2s; white-space: normal; text-align: left; margin-bottom: 5px;}
+        .name-badge:hover { background-color: #0d6efd !important; }
+        
+        /* Скроллбар */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1d; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+        
+        /* Auth Screen Overlay */
+        #auth-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #1a1a1d; z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .auth-box {
+            background-color: #222226; padding: 30px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 400px;
+        }
+
+       /* ======================================================= */
+        /* СТИЛИ ЯНДЕКС КАЛЕНДАРЯ ДЛЯ FULLCALENDAR                 */
+        /* ======================================================= */
+        
+        /* Переопределение базовых переменных темы */
+        :root {
+            --fc-border-color: #333338;
+            --fc-page-bg-color: #1a1a1d;
+            --fc-neutral-bg-color: #222226;
+            --fc-today-bg-color: rgba(255, 255, 255, 0.03);
+            --fc-event-border-color: transparent;
+        }
+
+        #calendar { 
+            background-color: #1e1e22; 
+            padding: 0; 
+            border-radius: 10px; 
+            box-shadow: none; 
+            border: 1px solid #333338;
+            overflow: hidden;
+        }
+
+        /* Заголовки дней (пн 13, вт 14) */
+        .fc-col-header-cell-cushion {
+            color: #adb5bd !important;
+            text-decoration: none !important;
+            font-weight: 500;
+            font-size: 0.85rem;
+            padding: 10px 0 !important;
+        }
+        .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+            color: #fff !important;
+        }
+
+        /* Колонка времени (слева) */
+        .fc-timegrid-axis-cushion {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+
+        /* Сетка времени (убираем лишние линии получасовок) */
+        .fc-timegrid-slot-minor { border-top: transparent !important; }
+        .fc-timegrid-slot { height: 2.5em !important; }
+
+        /* Внешний вид карточки события (Yandex Style) */
+        .fc-timegrid-event {
+            background-color: #2a2a30 !important;
+            border: 1px solid #3a3a42 !important;
+            border-radius: 6px !important;
+            margin: 1px 2px 0 2px !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+        }
+        
+        .fc-event-main {
+            padding: 4px 6px !important; /* Делаем паддинги чуть компактнее */
+            color: #e5e5e7 !important;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Скрываем стандартные элементы */
+        .fc-event-time, .fc-event-title { display: none !important; }
+
+        /* Линия текущего времени */
+        .fc-now-indicator-line { border-color: #ff3333 !important; border-width: 2px !important; }
+        .fc-now-indicator-arrow { 
+            border-color: #ff3333 !important; 
+            border-width: 5px 5px 5px 0 !important; 
+            border-top-color: transparent !important; 
+            border-bottom-color: transparent !important; 
+        }
+
+        /* Время Яндекса */
+        .ya-time {
+            font-size: 0.75rem; 
+            color: #adb5bd; 
+            margin-bottom: 2px; 
+            line-height: 1.1;
+            flex-shrink: 0;
+        }
+
+        /* Контейнер заголовка */
+        .ya-title-container {
+            display: -webkit-box; /* Для красивой обрезки многоточием */
+            -webkit-line-clamp: 4; /* Макс. строк до обрезки, чтобы текст не вылезал за блок */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        /* Точка Яндекса */
+        /* Текст Яндекса */
+        .ya-title-text {
+            font-size: 0.8rem; 
+            font-weight: 500; 
+            line-height: 1.2;
+            word-break: normal; 
+            overflow-wrap: break-word; 
+            
+            /* Новые свойства для красивого переноса по слогам: */
+            -webkit-hyphens: auto;
+            hyphens: auto;
+            
+            color: #fff;
+        }
+
+        /* ======================================================= */
+        /* РАСШИРЕНИЕ ПАРЫ ПРИ НАВЕДЕНИИ (Адаптировано под Яндекс) */
+        /* ======================================================= */
+        td.fc-timegrid-col:has(.fc-timegrid-event:hover),
+        .fc-timegrid-col-events:has(.fc-timegrid-event:hover),
+        .fc-timegrid-event-harness:has(.fc-timegrid-event:hover) { z-index: 9999 !important; }
+        
+        .fc-timegrid-event:hover {
+            overflow: visible !important;
+        }
+        
+        .fc-timegrid-event:hover .fc-event-main {
+            position: absolute; top: 0; left: 0; z-index: 9999;
+            min-width: 100% !important; width: max-content !important; 
+            max-width: 250px; 
+            height: max-content !important; min-height: 100% !important;     
+            background-color: #33333a !important; 
+            border: 1px solid #4a4a55 !important;
+            border-radius: 6px; 
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.8) !important; 
+            pointer-events: none !important; 
+        }
+
+        /* При наведении убираем ограничение строк, чтобы текст было видно полностью */
+        .fc-timegrid-event:hover .ya-title-container {
+            display: block;
+            -webkit-line-clamp: unset;
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- Экран авторизации -->
+<div id="auth-overlay">
+    <div class="auth-box" id="auth-box-login">
+        <h4 class="text-white mb-3 text-center">Вход</h4>
+        <input type="email" id="auth-email" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Почта @edu.centraluniversity.ru">
+        <input type="password" id="auth-pass" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Пароль">
+        <button class="btn btn-primary w-100 mb-2" onclick="authLogin()">Войти</button>
+        <div class="text-center mt-3">
+            <a href="#" class="text-muted small" onclick="switchAuthView('register')">Нет аккаунта? Зарегистрироваться</a>
+        </div>
+        <div id="auth-error" class="text-danger small mt-2 text-center"></div>
+    </div>
+
+    <div class="auth-box d-none" id="auth-box-register">
+        <h4 class="text-white mb-3 text-center">Регистрация</h4>
+        <input type="email" id="reg-email" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Почта @edu.centraluniversity.ru">
+        <input type="password" id="reg-pass" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Придумайте пароль">
+        <button class="btn btn-success w-100 mb-2" id="btn-reg" onclick="authRegister()">Зарегистрироваться</button>
+        <div class="text-center mt-3">
+            <a href="#" class="text-muted small" onclick="switchAuthView('login')">Уже есть аккаунт? Войти</a>
+        </div>
+        <div id="reg-error" class="text-danger small mt-2 text-center"></div>
+    </div>
+
+    <div class="auth-box d-none" id="auth-box-verify">
+        <h4 class="text-white mb-3 text-center">Подтверждение</h4>
+        <p class="text-muted small text-center">Код отправлен на вашу почту</p>
+        <input type="text" id="verify-code" class="form-control bg-dark text-white border-secondary mb-3 text-center fs-4" placeholder="000000" maxlength="6">
+        <button class="btn btn-warning w-100" onclick="authVerify()">Подтвердить</button>
+        <div id="verify-error" class="text-danger small mt-2 text-center"></div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Боковая панель -->
+        <div class="col-md-2 sidebar-container" style="min-width: 240px;">
+            
+            <div class="filter-panel" style="display: flex; flex-direction: column; height: 100%;">
+                
+                <!-- Переключатель режимов -->
+                <div class="btn-group w-100 mb-3 flex-shrink-0" role="group">
+                    <input type="radio" class="btn-check" name="ui-mode" id="mode-list" autocomplete="off" onchange="switchMode('list')">
+                    <label class="btn btn-outline-primary btn-sm" for="mode-list" title="Общий каталог всех предметов"><i class="bi bi-list-ul"></i> Каталог</label>
+                  
+                    <input type="radio" class="btn-check" name="ui-mode" id="mode-cards" autocomplete="off" onchange="switchMode('cards')">
+                    <label class="btn btn-outline-primary btn-sm" for="mode-cards" title="Выбор предметов и преподавателей вручную"><i class="bi bi-grid-fill"></i> Предметы</label>
+
+                    <input type="radio" class="btn-check" name="ui-mode" id="mode-personal" autocomplete="off" onchange="switchMode('personal')">
+                    <label class="btn btn-outline-primary btn-sm" for="mode-personal" title="Ваше личное расписание из TiMe"><i class="bi bi-person-badge"></i> Мои пары</label>
+                </div>
+
+                <!-- ============================ -->
+                <!-- РЕЖИМ 1: КАТАЛОГ (LIST)      -->
+                <!-- ============================ -->
+                <div id="view-list" class="d-none" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0; margin-bottom: 15px;">
+                        <h6 class="text-white">Предметы</h6>
+                        <input type="text" class="search-input" id="search-courses" placeholder="🔍 Поиск предмета..." oninput="filterCatalogList('search-courses', 'catalog-course-item')">
+                        <div class="scroll-container border border-secondary p-2 rounded" id="catalog-course-filters"></div>
+                        <div class="d-flex justify-content-between mt-2 flex-shrink-0">
+                            <button class="btn btn-sm btn-outline-secondary w-100 me-1" onclick="catalogSelectAllCourses(true)">Выбрать все</button>
+                            <button class="btn btn-sm btn-outline-secondary w-100 ms-1" onclick="catalogSelectAllCourses(false)">Сбросить</button>
+                        </div>
+                    </div>
+
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <h6 class="text-white">Преподаватели</h6>
+                        <input type="text" class="search-input" id="search-teachers" placeholder="🔍 Поиск преподавателя..." oninput="filterCatalogList('search-teachers', 'catalog-teacher-item')">
+                        <div class="scroll-container border border-secondary p-2 rounded" id="catalog-teacher-filters">
+                            <p class="text-muted small">Выберите предметы выше</p>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2 flex-shrink-0">
+                            <button class="btn btn-sm btn-outline-secondary w-100 me-1" onclick="catalogSelectAllTeachers(true)">Выбрать все</button>
+                            <button class="btn btn-sm btn-outline-secondary w-100 ms-1" onclick="catalogSelectAllTeachers(false)">Сбросить</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================ -->
+                <!-- РЕЖИМ 2: МОИ ПРЕДМЕТЫ (CARDS)-->
+                <!-- ============================ -->
+                <div id="view-cards" class="d-none" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
+                        <h6 class="m-0 text-white">Выбранное</h6>
+                        <button class="btn btn-sm btn-outline-danger" onclick="cardsClearAll()" title="Очистить всё">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+                    
+                    <button class="btn btn-primary w-100 mb-3 fw-bold flex-shrink-0" onclick="openAddCourseModal()">
+                        <i class="bi bi-plus-lg"></i> Добавить предмет
+                    </button>
+
+                    <div class="scroll-container" id="cards-container">
+                        <div id="empty-state" class="text-center text-muted mt-5">
+                            <i class="bi bi-funnel" style="font-size: 2rem;"></i>
+                            <p class="mt-2 small">Вы не добавили ни одного предмета. Нажмите кнопку выше.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================ -->
+                <!-- РЕЖИМ 3: МОЁ РАСПИСАНИЕ (PERSONAL)-->
+                <!-- ============================ -->
+                <div id="view-personal" class="d-none" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <div class="mb-3 flex-shrink-0">
+                        <label class="form-label text-white small">Импорт с Яндекса (TiMe)</label>
+                        <div class="input-group input-group-sm">
+                            <input type="email" id="import-email" class="form-control bg-dark text-white border-secondary" placeholder="Почта @edu.centraluniversity.ru">
+                            <button class="btn btn-success" onclick="importPersonalSchedule()" id="btn-import">
+                                <i class="bi bi-cloud-arrow-down"></i> Импорт
+                            </button>
+                        </div>
+                        <div id="import-status" class="small mt-1 d-none fw-bold"></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2 mt-2 flex-shrink-0">
+                        <h6 class="m-0 text-white">Мои пары</h6>
+                        <button class="btn btn-sm btn-outline-danger" onclick="clearPersonalSchedule()" title="Очистить всё">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+
+                    <button class="btn btn-primary btn-sm w-100 mb-3 fw-bold flex-shrink-0" onclick="openManualAddModal()">
+                        <i class="bi bi-plus-lg"></i> Точечно добавить пару
+                    </button>
+
+                    <div class="scroll-container" id="personal-container">
+                        <div id="personal-empty" class="text-center text-muted mt-4">
+                            <p class="small">Введите вашу студенческую почту и нажмите импорт, чтобы загрузить ваше личное расписание.</p>
+                        </div>
+                        <div id="personal-list"></div>
+                    </div>
+                </div>
+
+                <!-- КНОПКА ВЫХОДА (LOGOUT) -->
+                <div class="mt-auto pt-3 border-top border-secondary flex-shrink-0">
+                    <button class="btn btn-sm btn-outline-danger w-100" onclick="logout()">
+                        <i class="bi bi-box-arrow-left"></i> Выйти из аккаунта
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Календарь -->
+        <div class="col-md-10">
+            <div id='calendar'></div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= МОДАЛКИ ================= -->
+
+<!-- Модалка Добавления предмета (для Режима 2) -->
+<div class="modal fade" id="addCourseModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title">Добавить предмет</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label class="form-label text-warning small fw-bold">1. Направление</label>
+            <select class="form-select bg-dark text-white border-secondary" id="select-track" onchange="renderYearsSelect()"></select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-info small fw-bold">2. Курс</label>
+            <select class="form-select bg-dark text-white border-secondary" id="select-year" onchange="renderCoursesSelect()"></select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label text-primary small fw-bold">3. Предмет</label>
+            <select class="form-select bg-dark text-white border-primary" id="select-course"></select>
+            <div id="no-courses-msg" class="text-danger small mt-1 d-none">Все предметы из этой категории уже добавлены.</div>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-primary" id="btn-add-course" onclick="submitAddCourse()">Добавить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка ручного добавления пары (для Режима 3) -->
+<div class="modal fade" id="manualAddModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title">Добавить конкретную пару</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row mb-3">
+            <div class="col-md-6 mb-2">
+                <label class="form-label small text-info">Предмет</label>
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="manual-select-course" onchange="manualCourseChanged()"></select>
+            </div>
+            <div class="col-md-6 mb-2">
+                <label class="form-label small text-info">Преподаватель</label>
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" id="manual-select-teacher" onchange="manualSearchEvents()"></select>
+            </div>
+        </div>
+        <div class="text-center" id="manual-search-loader" style="display: none;">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div> <span class="small">Ищу пары...</span>
+        </div>
+        <div class="list-group" id="manual-events-list" style="max-height: 350px; overflow-y: auto;">
+            <!-- Список найденных пар -->
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-primary" onclick="addSelectedManualEvents()">Добавить выбранные</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка просмотра события (Общая) -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title" id="modalTitle">Название пары</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1"><strong>🕒 Время:</strong> <span id="modalTime"></span></p>
+        <p class="mb-1"><strong>👨‍🏫 Преподаватель:</strong> <span id="modalTeacher"></span></p>
+        <p class="mb-1"><strong>👥 Кол-во:</strong> <span id="modalAttendees"></span></p>
+        <hr>
+        <p class="mb-1"><strong>🔗 Ссылка / Описание:</strong></p>
+        <div id="modalLink" class="link-text bg-dark p-3 rounded border border-secondary mb-3" style="word-wrap: break-word;"></div>
+        <p class="mb-1"><strong>🎥 Запись пары (КТолк):</strong></p>
+        <div id="modalRecording" class="bg-dark p-2 rounded border border-secondary mb-3"></div>
+        <p class="mb-1"><strong>🧑‍🎓 Участники (сырые почты):</strong></p>
+        <div id="modalAttendeesList" class="bg-dark p-2 rounded border border-secondary text-secondary" style="max-height: 120px; overflow-y: auto; font-size: 0.8rem; font-family: monospace;"></div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // ==========================================
+    // AUTH LOGIC
+    // ==========================================
+    function checkAuth() {
+        const token = localStorage.getItem('uni_token');
+        if (token) {
+            document.getElementById('auth-overlay').style.display = 'none';
+            return true;
+        } else {
+            document.getElementById('auth-overlay').style.display = 'flex';
+            return false;
+        }
+    }
+    
+    function logout() {
+        localStorage.removeItem('uni_token');
+        location.reload();
+    }
+
+    async function authFetch(url, options = {}) {
+        const token = localStorage.getItem('uni_token');
+        if (!options.headers) options.headers = {};
+        if (token) options.headers['Authorization'] = `Bearer ${token}`;
+
+        const response = await fetch(url, options);
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            throw new Error("Unauthorized");
+        }
+        return response;
+    }
+
+    function switchAuthView(view) {
+        document.getElementById('auth-box-login').classList.add('d-none');
+        document.getElementById('auth-box-register').classList.add('d-none');
+        document.getElementById('auth-box-verify').classList.add('d-none');
+        document.getElementById(`auth-box-${view}`).classList.remove('d-none');
+    }
+
+    async function authLogin() {
+        const email = document.getElementById('auth-email').value;
+        const password = document.getElementById('auth-pass').value;
+        const err = document.getElementById('auth-error');
+        
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, password})
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                localStorage.setItem('uni_token', data.access_token);
+                location.reload();
+            } else {
+                err.innerText = data.detail || 'Ошибка авторизации';
+            }
+        } catch (e) {
+            err.innerText = 'Ошибка соединения с сервером';
+        }
+    }
+
+    async function authRegister() {
+        const email = document.getElementById('reg-email').value;
+        const password = document.getElementById('reg-pass').value;
+        const err = document.getElementById('reg-error');
+        const btn = document.getElementById('btn-reg');
+        
+        btn.disabled = true; err.innerText = "Отправка...";
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, password})
+            });
+            const data = await res.json();
+            
+            btn.disabled = false;
+            if (res.ok) {
+                switchAuthView('verify');
+                window.tempRegEmail = email; 
+            } else {
+                err.innerText = data.detail || 'Ошибка регистрации';
+            }
+        } catch (e) {
+            btn.disabled = false;
+            err.innerText = 'Ошибка соединения с сервером';
+        }
+    }
+
+    async function authVerify() {
+        const code = document.getElementById('verify-code').value;
+        const err = document.getElementById('verify-error');
+        
+        try {
+            const res = await fetch('/api/auth/verify', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: window.tempRegEmail, code})
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                alert("Почта подтверждена! Теперь вы можете войти.");
+                switchAuthView('login');
+                document.getElementById('auth-email').value = window.tempRegEmail;
+            } else {
+                err.innerText = data.detail || 'Ошибка подтверждения';
+            }
+        } catch (e) {
+            err.innerText = 'Ошибка соединения с сервером';
+        }
+    }
+
+    // ==========================================
+    // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И ИНИЦИАЛИЗАЦИЯ
+    // ==========================================
+    let calendar;
+    let eventModal, addCourseModal, manualAddModal;
+    
+    let allCourses = []; 
+    let currentMode = localStorage.getItem('uni_ui_mode') || 'list'; 
+    
+    // Состояния
+    let catalogActiveTeachers = {}; 
+    let cardsSelectedState = JSON.parse(localStorage.getItem('uni_cards_filters')) || {};
+    let personalEvents = JSON.parse(localStorage.getItem('uni_personal_events')) || [];
+
+    document.addEventListener('DOMContentLoaded', async function() {
+        // Если нет токена, останавливаем загрузку интерфейса
+        if (!checkAuth()) return;
+
+        eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+        addCourseModal = new bootstrap.Modal(document.getElementById('addCourseModal'));
+        manualAddModal = new bootstrap.Modal(document.getElementById('manualAddModal'));
+
+        // Восстанавливаем переключатель
+        if (document.getElementById(`mode-${currentMode}`)) {
+            document.getElementById(`mode-${currentMode}`).checked = true;
+        } else {
+            currentMode = 'list';
+            document.getElementById('mode-list').checked = true;
+        }
+        
+        await fetchAllCourses();
+        switchMode(currentMode, false); // false = не рефрешить календарь, он еще не создан
+        initCalendar();
+    });
+
+    async function fetchAllCourses() {
+        const res = await authFetch('/api/courses');
+        allCourses = await res.json();
+    }
+
+    function getCourseQuery(course) {
+        if (!course.search_query || course.search_query === 'null') return course.name;
+        return course.search_query;
+    }
+
+    // ==========================================
+    // УПРАВЛЕНИЕ РЕЖИМАМИ (UI MODE)
+    // ==========================================
+    function switchMode(mode, refreshCalendar = true) {
+        currentMode = mode;
+        localStorage.setItem('uni_ui_mode', mode);
+
+        document.getElementById('view-list').classList.toggle('d-none', mode !== 'list');
+        document.getElementById('view-list').style.display = mode === 'list' ? 'flex' : 'none';
+        
+        document.getElementById('view-cards').classList.toggle('d-none', mode !== 'cards');
+        document.getElementById('view-cards').style.display = mode === 'cards' ? 'flex' : 'none';
+
+        document.getElementById('view-personal').classList.toggle('d-none', mode !== 'personal');
+        document.getElementById('view-personal').style.display = mode === 'personal' ? 'flex' : 'none';
+
+        if (mode === 'list') {
+            initCatalogUI();
+        } else if (mode === 'cards') {
+            initCardsUI();
+        } else if (mode === 'personal') {
+            renderPersonalUI();
+        }
+
+        if (refreshCalendar && calendar) {
+            calendar.refetchEvents();
+        }
+    }
+
+
+    // ==========================================
+    // РЕЖИМ 1: КАТАЛОГ (LIST)
+    // ==========================================
+    function initCatalogUI() {
+        const container = document.getElementById('catalog-course-filters');
+        container.innerHTML = ''; 
+        
+        const grouped = {};
+        allCourses.forEach(c => {
+            const track = c.track || 'Другое';
+            const year = c.course_year || 'Без курса';
+            if (!grouped[track]) grouped[track] = {};
+            if (!grouped[track][year]) grouped[track][year] = [];
+            grouped[track][year].push(c);
+        });
+
+        for (const [track, years] of Object.entries(grouped)) {
+            const trackDiv = document.createElement('div');
+            trackDiv.className = 'catalog-track-group mb-2';
+            trackDiv.innerHTML = `<h6 class="text-warning border-bottom border-warning pb-1 mb-1 mt-2">${track}</h6>`;
+            
+            for (const [year, yearCourses] of Object.entries(years)) {
+                const yearDiv = document.createElement('div');
+                yearDiv.className = 'catalog-year-group ms-2 mb-1';
+                const yearLabel = (year === 'Без курса' || year.toLowerCase().includes('курс')) ? year : `${year} курс`;
+                yearDiv.innerHTML = `<div class="text-info small mb-1 fw-bold">${yearLabel}</div>`;
+                
+                yearCourses.forEach(course => {
+                    const div = document.createElement('div');
+                    div.className = 'catalog-course-item form-check ms-2 d-flex align-items-start justify-content-between mb-1'; 
+                    
+                    const queryValue = getCourseQuery(course);
+                    const safeName = course.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const safeQuery = queryValue.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                    div.innerHTML = `
+                    <div class="w-100 mb-1">
+                        <input class="form-check-input catalog-course-checkbox" type="checkbox" value="${safeQuery}" data-name="${safeName}" id="ccheck${course.id}" checked onchange="catalogUpdateTeachers()">
+                        <label class="form-check-label course-label" for="ccheck${course.id}">
+                            ${course.name}
+                        </label>
+                    </div>
+                `;
+                    yearDiv.appendChild(div);
+                });
+                trackDiv.appendChild(yearDiv);
+            }
+            container.appendChild(trackDiv);
+        }
+        catalogUpdateTeachers();
+    }
+
+    async function catalogUpdateTeachers() {
+        const checkboxes = Array.from(document.querySelectorAll('.catalog-course-checkbox:checked'));
+        const selected = checkboxes.map(cb => ({ query: cb.value, name: cb.dataset.name }));
+        const container = document.getElementById('catalog-teacher-filters');
+
+        if (selected.length === 0) {
+            container.innerHTML = '<p class="text-muted small">Выберите предметы выше</p>';
+            if(currentMode === 'list' && calendar) calendar.refetchEvents();
+            return;
+        }
+
+        let url = new URL('/api/teachers', window.location.origin);
+        selected.forEach(c => url.searchParams.append('queries', c.query));
+
+        try {
+            const res = await authFetch(url);
+            const teachersByQuery = await res.json();
+            
+            container.innerHTML = '';
+
+            selected.forEach(course => {
+                const teachers = teachersByQuery[course.query] || [];
+                if (teachers.length === 0) return;
+                
+                const header = document.createElement('h6');
+                header.className = 'mt-2 mb-1 text-info small border-bottom border-secondary pb-1';
+                header.innerText = course.name;
+                container.appendChild(header);
+                
+                if (!catalogActiveTeachers[course.query]) catalogActiveTeachers[course.query] = new Set();
+
+                teachers.forEach((teacher, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'form-check mb-1 catalog-teacher-item'; 
+                    const safeT = teacher.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    
+                    if (catalogActiveTeachers[course.query].size === 0 && !catalogActiveTeachers[course.query].has(teacher)) {
+                        catalogActiveTeachers[course.query].add(teacher);
+                    }
+                    const isChecked = catalogActiveTeachers[course.query].has(teacher);
+
+                    div.innerHTML = `
+                        <input class="form-check-input catalog-teacher-checkbox" type="checkbox" value="${safeT}" data-query="${course.query}" id="tcheck_${course.query}_${idx}" ${isChecked ? 'checked' : ''} onchange="catalogToggleTeacher(this)">
+                        <label class="form-check-label course-label" for="tcheck_${course.query}_${idx}">${teacher}</label>
+                    `;
+                    container.appendChild(div);
+                });
+            });
+
+            if(currentMode === 'list' && calendar) calendar.refetchEvents();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function catalogToggleTeacher(cb) {
+        const query = cb.getAttribute('data-query');
+        if (cb.checked) catalogActiveTeachers[query].add(cb.value);
+        else catalogActiveTeachers[query].delete(cb.value);
+        if(currentMode === 'list' && calendar) calendar.refetchEvents();
+    }
+
+    function filterCatalogList(inputId, itemClassName) {
+        const query = document.getElementById(inputId).value.toLowerCase();
+        const items = document.querySelectorAll('.' + itemClassName);
+        items.forEach(item => {
+            const label = item.querySelector('label') ? item.querySelector('label').innerText.toLowerCase() : item.innerText.toLowerCase();
+            item.classList.toggle('d-none', !label.includes(query));
+        });
+        
+        if (inputId === 'search-courses') {
+            document.querySelectorAll('.catalog-track-group').forEach(trackDiv => {
+                let trackVis = false;
+                trackDiv.querySelectorAll('.catalog-year-group').forEach(yearDiv => {
+                    let yearVis = Array.from(yearDiv.querySelectorAll('.catalog-course-item')).some(i => !i.classList.contains('d-none'));
+                    yearDiv.style.display = yearVis ? 'block' : 'none';
+                    if(yearVis) trackVis = true;
+                });
+                trackDiv.style.display = trackVis ? 'block' : 'none';
+            });
+        }
+    }
+
+    function catalogSelectAllCourses(check) {
+        document.querySelectorAll('.catalog-course-item:not(.d-none) .catalog-course-checkbox').forEach(cb => cb.checked = check);
+        catalogUpdateTeachers(); 
+    }
+
+    function catalogSelectAllTeachers(check) {
+        document.querySelectorAll('.catalog-teacher-item:not(.d-none) .catalog-teacher-checkbox').forEach(cb => {
+            cb.checked = check;
+            const query = cb.getAttribute('data-query');
+            if (check) catalogActiveTeachers[query].add(cb.value);
+            else catalogActiveTeachers[query].delete(cb.value);
+        });
+        if(currentMode === 'list' && calendar) calendar.refetchEvents();
+    }
+
+
+    // ==========================================
+    // РЕЖИМ 2: МОИ ПРЕДМЕТЫ (CARDS)
+    // ==========================================
+    let cardsAvailableTeachers = {};
+
+    async function initCardsUI() {
+        const activeIds = Object.keys(cardsSelectedState);
+        if (activeIds.length === 0) {
+            drawCardsUI();
+            return;
+        }
+
+        let url = new URL('/api/teachers', window.location.origin);
+        let needsFetch = false;
+
+        activeIds.forEach(id => {
+            const course = allCourses.find(c => c.id == id);
+            if (course) {
+                const query = getCourseQuery(course);
+                if (!cardsAvailableTeachers[query]) {
+                    url.searchParams.append('queries', query);
+                    needsFetch = true;
+                }
+            }
+        });
+
+        if (needsFetch) {
+            try {
+                const res = await authFetch(url);
+                const newTeachers = await res.json();
+                Object.assign(cardsAvailableTeachers, newTeachers);
+            } catch (e) {
+                console.error("Ошибка загрузки преподавателей:", e);
+            }
+        }
+
+        let stateChanged = false;
+        activeIds.forEach(id => {
+            if (cardsSelectedState[id] === null) {
+                const course = allCourses.find(c => c.id == id);
+                if (course) {
+                    const query = getCourseQuery(course);
+                    cardsSelectedState[id] = cardsAvailableTeachers[query] ? [...cardsAvailableTeachers[query]] : [];
+                } else {
+                    cardsSelectedState[id] = [];
+                }
+                stateChanged = true;
+            }
+        });
+
+        if (stateChanged) {
+            localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        }
+
+        drawCardsUI();
+    }
+
+    function drawCardsUI() {
+        const container = document.getElementById('cards-container');
+        let emptyState = document.getElementById('empty-state');
+        
+        if (!emptyState) {
+            emptyState = document.createElement('div');
+            emptyState.id = 'empty-state';
+            emptyState.className = 'text-center text-muted mt-5';
+            emptyState.innerHTML = '<i class="bi bi-funnel" style="font-size: 2rem;"></i><p class="mt-2 small">Вы не добавили ни одного предмета. Нажмите кнопку выше.</p>';
+            container.appendChild(emptyState);
+        }
+
+        const activeIds = Object.keys(cardsSelectedState);
+        const currentCards = container.querySelectorAll('.active-filter-card');
+        currentCards.forEach(card => card.remove());
+
+        if (activeIds.length === 0) {
+            emptyState.classList.remove('d-none');
+            return;
+        }
+
+        emptyState.classList.add('d-none');
+
+        activeIds.forEach(id => {
+            const course = allCourses.find(c => c.id == id);
+            if (!course) return;
+
+            const query = getCourseQuery(course);
+            const availableT = cardsAvailableTeachers[query] || [];
+            const selectedT = cardsSelectedState[id] || [];
+
+            const card = document.createElement('div');
+            card.className = 'active-filter-card';
+            
+            let teachersHtml = availableT.length === 0 ? 
+                '<div class="text-muted small">Нет известных преподавателей. Перейдите в настройки (⚙️).</div>' : 
+                availableT.map((t, idx) => {
+                    const safeT = t.replace(/"/g, '&quot;');
+                    return `
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" id="ct_${id}_${idx}" value="${safeT}"
+                            ${selectedT.includes(t) ? 'checked' : ''} onchange="cardsToggleTeacher('${id}', this.value, this.checked)">
+                        <label class="form-check-label teacher-check-label w-100" for="ct_${id}_${idx}">${t}</label>
+                    </div>
+                `}).join('') + `
+                <div class="mt-2 d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm flex-fill" style="font-size:0.7rem; padding: 2px;" onclick="cardsSelectAllT('${id}', true)">Все</button>
+                    <button class="btn btn-outline-secondary btn-sm flex-fill" style="font-size:0.7rem; padding: 2px;" onclick="cardsSelectAllT('${id}', false)">Сброс</button>
+                </div>`;
+
+            card.innerHTML = `
+                <div class="filter-card-header">
+                    <div>
+                        <div class="filter-card-title">${course.name}</div>
+                        <div class="filter-card-meta">${course.track || 'Другое'} • ${course.course_year || 'Без курса'}</div>
+                    </div>
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        <button class="btn-icon text-danger" title="Удалить" onclick="cardsRemoveCourse('${id}')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+                <div class="filter-card-body">${teachersHtml}</div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function cardsToggleTeacher(courseId, teacherName, isChecked) {
+        if (!cardsSelectedState[courseId]) cardsSelectedState[courseId] = [];
+        if (isChecked && !cardsSelectedState[courseId].includes(teacherName)) cardsSelectedState[courseId].push(teacherName);
+        else if (!isChecked) cardsSelectedState[courseId] = cardsSelectedState[courseId].filter(t => t !== teacherName);
+        
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+    }
+
+    function cardsSelectAllT(courseId, checkAll) {
+        const query = getCourseQuery(allCourses.find(c => c.id == courseId));
+        const available = cardsAvailableTeachers[query] || [];
+        cardsSelectedState[courseId] = checkAll ? [...available] : [];
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        
+        const checkboxes = document.querySelectorAll(`input[id^="ct_${courseId}_"]`);
+        checkboxes.forEach(cb => { cb.checked = checkAll; });
+
+        if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+    }
+
+    function cardsRemoveCourse(id) {
+        delete cardsSelectedState[id];
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        initCardsUI();
+        if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+    }
+
+    function cardsClearAll() {
+        if(confirm("Удалить все предметы из расписания?")) {
+            cardsSelectedState = {};
+            localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+            initCardsUI();
+            if(currentMode === 'cards' && calendar) calendar.refetchEvents();
+        }
+    }
+
+    // -- ДОБАВЛЕНИЕ ПРЕДМЕТА (МОДАЛКА МАСТЕР) --
+    function openAddCourseModal() {
+        renderTracksSelect();
+        addCourseModal.show();
+    }
+
+    function renderTracksSelect() {
+        const available = allCourses.filter(c => !(c.id in cardsSelectedState));
+        const select = document.getElementById('select-track');
+        select.innerHTML = [...new Set(available.map(c => c.track || 'Другое'))].sort().map(t => `<option value="${t}">${t}</option>`).join('');
+        renderYearsSelect();
+    }
+
+    function renderYearsSelect() {
+        const track = document.getElementById('select-track').value;
+        const available = allCourses.filter(c => !(c.id in cardsSelectedState) && (c.track || 'Другое') === track);
+        const select = document.getElementById('select-year');
+        select.innerHTML = [...new Set(available.map(c => c.course_year || 'Без курса'))].sort().map(y => `<option value="${y}">${y}</option>`).join('');
+        renderCoursesSelect();
+    }
+
+    function renderCoursesSelect() {
+        const track = document.getElementById('select-track').value;
+        const year = document.getElementById('select-year').value;
+        const available = allCourses.filter(c => !(c.id in cardsSelectedState) && (c.track || 'Другое') === track && (c.course_year || 'Без курса') === year)
+                                    .sort((a, b) => a.name.localeCompare(b.name));
+        
+        const select = document.getElementById('select-course');
+        const btn = document.getElementById('btn-add-course');
+        const msg = document.getElementById('no-courses-msg');
+
+        if (available.length === 0) {
+            select.innerHTML = ''; select.disabled = true; btn.disabled = true; msg.classList.remove('d-none');
+        } else {
+            select.innerHTML = available.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            select.disabled = false; btn.disabled = false; msg.classList.add('d-none');
+        }
+    }
+
+    async function submitAddCourse() {
+        const id = document.getElementById('select-course').value;
+        if (!id) return;
+        addCourseModal.hide();
+
+        cardsSelectedState[id] = null; 
+        localStorage.setItem('uni_cards_filters', JSON.stringify(cardsSelectedState));
+        
+        await initCardsUI(); 
+        if(currentMode === 'cards' && calendar) {
+            calendar.refetchEvents();
+        }
+    }
+
+
+    // ==========================================
+    // РЕЖИМ 3: МОЁ РАСПИСАНИЕ (PERSONAL)
+    // ==========================================
+    async function importPersonalSchedule() {
+        const email = document.getElementById('import-email').value;
+        const btn = document.getElementById('btn-import');
+        const statusBox = document.getElementById('import-status');
+        
+        if (!email) return alert("Введите почту!");
+        
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Загрузка...`;
+        statusBox.classList.remove('d-none', 'text-danger', 'text-success');
+        
+        try {
+            const res = await authFetch(`/api/student/import?email=${encodeURIComponent(email)}`);
+            const data = await res.json();
+            
+            if (data.status === 'error') {
+                statusBox.classList.add('text-danger');
+                statusBox.innerText = data.message;
+            } else {
+                personalEvents = data.events;
+                localStorage.setItem('uni_personal_events', JSON.stringify(personalEvents));
+                
+                statusBox.classList.add('text-success');
+                statusBox.innerText = `Успешно загружено ${data.events.length} пар!`;
+                renderPersonalUI();
+                if (calendar) calendar.refetchEvents();
+            }
+        } catch (e) {
+            statusBox.classList.add('text-danger');
+            statusBox.innerText = "Ошибка соединения с сервером.";
+        }
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-cloud-arrow-down"></i> Импорт`;
+    }
+
+    function renderPersonalUI() {
+        const listDiv = document.getElementById('personal-list');
+        const emptyState = document.getElementById('personal-empty');
+        
+        if (personalEvents.length === 0) {
+            listDiv.innerHTML = '';
+            emptyState.style.display = 'block';
+            return;
+        }
+        emptyState.style.display = 'none';
+
+        // Группируем пары по названию
+        const grouped = {};
+        // Сортируем пары по времени для красоты внутри группы
+        const sortedEvents = [...personalEvents].sort((a, b) => new Date(a.start) - new Date(b.start));
+        
+        sortedEvents.forEach(ev => {
+            const cleanTitle = ev.title.split(',')[0].trim();
+            if (!grouped[cleanTitle]) grouped[cleanTitle] = [];
+            grouped[cleanTitle].push(ev);
+        });
+
+        let html = '';
+        for (const [title, evs] of Object.entries(grouped)) {
+            html += `
+                <div class="active-filter-card">
+                    <div class="filter-card-header">
+                        <div class="filter-card-title">${title} <span class="badge bg-secondary ms-1">${evs.length}</span></div>
+                        <button class="btn-icon text-danger" title="Удалить все" onclick="removePersonalGroup('${title}')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="filter-card-body p-0" style="max-height: 180px; overflow-y: auto;">
+                        <ul class="list-group list-group-flush small">
+                            ${evs.map(e => {
+                                const dt = new Date(e.start);
+                                const dateStr = dt.toLocaleDateString('ru-RU', {weekday:'short', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+                                return `
+                                <li class="list-group-item bg-dark text-white d-flex justify-content-between align-items-center py-1 px-2 border-secondary">
+                                    <span style="font-size: 0.75rem;"><i class="bi bi-clock me-1 text-info"></i> ${dateStr}</span>
+                                    <button class="btn btn-sm text-danger p-0 ms-2" onclick="removePersonalEvent('${e.id}')"><i class="bi bi-trash"></i></button>
+                                </li>`
+                            }).join('')}
+                        </ul>
+                    </div>
+                </div>`;
+        }
+        listDiv.innerHTML = html;
+    }
+
+    function removePersonalGroup(titleGroup) {
+        if(!confirm(`Удалить все пары по предмету: \n${titleGroup}?`)) return;
+        personalEvents = personalEvents.filter(ev => ev.title.split(',')[0].trim() !== titleGroup);
+        localStorage.setItem('uni_personal_events', JSON.stringify(personalEvents));
+        renderPersonalUI();
+        if (calendar) calendar.refetchEvents();
+    }
+
+    function removePersonalEvent(id) {
+        personalEvents = personalEvents.filter(ev => ev.id !== id);
+        localStorage.setItem('uni_personal_events', JSON.stringify(personalEvents));
+        renderPersonalUI();
+        if (calendar) calendar.refetchEvents();
+    }
+
+    function clearPersonalSchedule() {
+        if(!confirm('Полностью очистить Моё расписание?')) return;
+        personalEvents = [];
+        localStorage.setItem('uni_personal_events', JSON.stringify(personalEvents));
+        renderPersonalUI();
+        if (calendar) calendar.refetchEvents();
+    }
+
+    // --- РУЧНОЕ ДОБАВЛЕНИЕ ПАР ---
+    let tempManualSeries = []; // Здесь теперь хранятся серии пар
+
+    async function openManualAddModal() {
+        const select = document.getElementById('manual-select-course');
+        select.innerHTML = `<option value="">-- Выберите предмет --</option>` + 
+            allCourses.sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        document.getElementById('manual-select-teacher').innerHTML = '<option value="">Сначала выберите предмет</option>';
+        document.getElementById('manual-events-list').innerHTML = '';
+        manualAddModal.show();
+    }
+
+    async function manualCourseChanged() {
+        const courseId = document.getElementById('manual-select-course').value;
+        const teacherSelect = document.getElementById('manual-select-teacher');
+        teacherSelect.innerHTML = '<option value="">Загрузка...</option>';
+        document.getElementById('manual-events-list').innerHTML = '';
+        
+        if (!courseId) {
+            teacherSelect.innerHTML = '<option value="">Сначала выберите предмет</option>';
+            return;
+        }
+
+        const course = allCourses.find(c => c.id == courseId);
+        const query = getCourseQuery(course);
+
+        try {
+            const res = await authFetch(`/api/teachers?queries=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            const teachers = data[query] || [];
+
+            if (teachers.length === 0) {
+                teacherSelect.innerHTML = '<option value="">Преподаватели не найдены</option>';
+            } else {
+                teacherSelect.innerHTML = `<option value="">-- Выберите преподавателя --</option>` + 
+                    teachers.map(t => `<option value="${t}">${t}</option>`).join('');
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function manualSearchEvents() {
+        const courseId = document.getElementById('manual-select-course').value;
+        const teacher = document.getElementById('manual-select-teacher').value;
+        const list = document.getElementById('manual-events-list');
+        const loader = document.getElementById('manual-search-loader');
+        
+        if (!courseId || !teacher) return;
+
+        const course = allCourses.find(c => c.id == courseId);
+        const query = getCourseQuery(course);
+
+        list.innerHTML = '';
+        loader.style.display = 'block';
+
+        try {
+            const res = await authFetch(`/api/events/search_specific?query=${encodeURIComponent(query)}&teacher=${encodeURIComponent(teacher)}`);
+            tempManualSeries = await res.json(); // Получаем сгруппированные данные
+            
+            loader.style.display = 'none';
+            if (tempManualSeries.length === 0) {
+                list.innerHTML = '<div class="text-center text-warning p-3">Пары не найдены в базе.</div>';
+                return;
+            }
+
+            list.innerHTML = tempManualSeries.map((series, i) => {
+                // Проверяем, есть ли хотя бы одна пара из этой серии уже в расписании
+                const isAdded = series.events.some(ev => personalEvents.some(pe => pe.id === ev.id));
+                
+                return `
+                <label class="list-group-item bg-dark text-white border-secondary d-flex justify-content-between align-items-center mb-1 rounded" style="cursor:pointer">
+                    <div class="d-flex align-items-center">
+                        <input class="form-check-input me-3 manual-event-checkbox" type="checkbox" value="${i}" ${isAdded ? 'checked disabled' : ''}>
+                        <div>
+                            <div class="fw-bold text-warning" style="font-size: 0.95rem;">${series.weekday_str}, ${series.time_str}</div>
+                            <div class="text-info small" style="font-size: 0.8rem;">${series.title}</div>
+                            <div class="text-muted mt-1" style="font-size: 0.75rem;">Будет добавлено: <b>${series.events.length} шт.</b> (до конца семестра)</div>
+                        </div>
+                    </div>
+                    ${isAdded ? '<span class="badge bg-success small">Уже в расписании</span>' : ''}
+                </label>`;
+            }).join('');
+        } catch (e) {
+            loader.style.display = 'none';
+            list.innerHTML = '<div class="text-center text-danger p-3">Ошибка поиска.</div>';
+        }
+    }
+
+    function addSelectedManualEvents() {
+        const checkboxes = document.querySelectorAll('.manual-event-checkbox:checked:not(:disabled)');
+        let addedCount = 0;
+        
+        checkboxes.forEach(cb => {
+            const idx = parseInt(cb.value);
+            const series = tempManualSeries[idx];
+            
+            // Добавляем ВСЕ даты из выбранной серии
+            series.events.forEach(ev => {
+                if (!personalEvents.some(pe => pe.id === ev.id)) {
+                    personalEvents.push(ev);
+                    addedCount++;
+                }
+            });
+        });
+
+        if (addedCount > 0) {
+            localStorage.setItem('uni_personal_events', JSON.stringify(personalEvents));
+            renderPersonalUI();
+            if (calendar && currentMode === 'personal') calendar.refetchEvents();
+            manualAddModal.hide();
+            setTimeout(() => alert(`Успешно добавлено пар: ${addedCount}`), 300);
+        } else {
+            alert('Вы не выбрали новые группы пар для добавления.');
+        }
+    }
+
+
+    // ==========================================
+    // КАЛЕНДАРЬ FULLCALENDAR
+    // ==========================================
+    
+
+    // ==========================================
+    // КАЛЕНДАРЬ FULLCALENDAR
+    // ==========================================
+    
+    function initCalendar() {
+        calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+            initialView: 'timeGridWeek', 
+            locale: 'ru', 
+            firstDay: 1,
+            slotMinTime: '09:00:00', 
+            slotMaxTime: '22:00:00', 
+            allDaySlot: false, 
+            nowIndicator: true,
+            
+            // ФОРМАТ ЗАГОЛОВКОВ И ВРЕМЕНИ СЛЕВА (9:00 вместо 9)
+            dayHeaderFormat: { weekday: 'short', day: 'numeric' }, 
+            slotLabelFormat: { hour: 'numeric', minute: '2-digit', omitZeroMinute: false }, 
+            
+            headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
+            
+            // Кастомный рендер содержимого карточки (Яндекс стиль)
+            eventContent: function(arg) {
+                const startTime = arg.event.start.toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
+                const endTime = arg.event.end ? arg.event.end.toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'}) : '';
+                const timeStr = endTime ? `${startTime} – ${endTime}` : startTime;
+                
+                // Берем оригинальное название ровно в том виде, в котором оно пришло (вместе с системным эмодзи)
+                let originalTitle = arg.event.title || '';
+
+                let customHtml = `
+                    <div class="ya-time">${timeStr}</div>
+                    <div class="ya-title-container">
+                        <span class="ya-title-text">${originalTitle}</span>
+                    </div>
+                `;
+                return { html: customHtml };
+            },
+
+            events: function(info, success, failure) {
+                // ВОССТАНОВЛЕНА ЛОГИКА ДЛЯ РЕЖИМА "МОЁ РАСПИСАНИЕ"
+                if (currentMode === 'personal') {
+                    success(typeof personalEvents !== 'undefined' ? personalEvents : []);
+                    return;
+                }
+
+                const filters = [];
+                
+                if (currentMode === 'list') {
+                    document.querySelectorAll('.catalog-course-checkbox:checked').forEach(cb => {
+                        const query = cb.value;
+                        const teachers = Array.from(document.querySelectorAll(`.catalog-teacher-checkbox[data-query="${query}"]:checked`)).map(tcb => tcb.value);
+                        if (teachers.length > 0) filters.push({ query, teachers });
+                    });
+                } else if (currentMode === 'cards') {
+                    for (const [id, teachers] of Object.entries(cardsSelectedState)) {
+                        if (teachers && teachers.length > 0) {
+                            const course = allCourses.find(c => c.id == id);
+                            if (course) filters.push({ query: getCourseQuery(course), teachers });
+                        }
+                    }
+                }
+
+                if (filters.length === 0) { success([]); return; }
+
+                // Поддержка и authFetch (если вы используете первую версию файла с авторизацией), и обычного fetch
+                const fetchFunction = (typeof authFetch === 'function') ? authFetch : fetch;
+
+                fetchFunction('/api/events', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start: info.startStr, end: info.endStr, filters })
+                }).then(r => r.json()).then(data => success(data)).catch(err => failure(err));
+            },
+            eventClick: function(info) {
+                const p = info.event.extendedProps;
+                const d = info.event.start;
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+                document.getElementById('modalTitle').innerText = info.event.title;
+                document.getElementById('modalTime').innerText = `${info.event.start.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'})} — ${info.event.end ? info.event.end.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}) : ''} (${dateStr})`;
+                document.getElementById('modalAttendees').innerText = p.total_attendees || '0';
+                document.getElementById('modalTeacher').innerText = p.teacher_names || 'Не определен';
+                
+                let link = p.link_description || 'Нет ссылки';
+                document.getElementById('modalLink').innerHTML = link.startsWith('http') ? `<a href="${link}" target="_blank">${link}</a>` : link;
+
+                const recBox = document.getElementById('modalRecording');
+                const rec = (p.recordings || {})[dateStr];
+                
+                // Проверка на наличие модалки для ручного сохранения (из второго файла)
+                const templateEventId = p.template_event_id || '';
+                
+                if (rec && rec.url && rec.url !== 'null') {
+                    recBox.innerHTML = `<a href="${rec.url}" class="btn btn-sm btn-primary w-100" target="_blank">▶️ Смотреть видео</a>`;
+                } else {
+                    recBox.innerHTML = `
+                        <p class="text-warning small mb-2">Запись не найдена.</p>
+                        ${templateEventId ? `
+                        <div class="input-group input-group-sm d-none">
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="manualRecordingUrl" placeholder="Вставьте ссылку...">
+                            <button class="btn btn-outline-success" onclick="saveManualRecording('${templateEventId}', '${dateStr}')">Сохранить</button>
+                        </div>` : ''}
+                    `;
+                }
+                
+                const emails = p.attendees_emails || '';
+                document.getElementById('modalAttendeesList').innerHTML = emails ? emails.split(',').map(e => `<div>${e.trim()}</div>`).join('') : 'Нет данных';
+                
+                eventModal.show();
+            }
+        });
+        calendar.render();
+    }
+
+</script>
+
+</body>
+</html>

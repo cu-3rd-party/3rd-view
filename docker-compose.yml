@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-cu_view_db}
+      POSTGRES_USER: ${DB_USER:-cu_view_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cu_view_password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cu_view_user} -d ${DB_NAME:-cu_view_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-8082} --reload
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+    ports:
+      - "${APP_PORT:-8082}:${APP_PORT:-8082}"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: uv run cu-3rd-view-worker
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

@@ -207,19 +207,35 @@
 <div id="auth-overlay">
     <div class="auth-box" id="auth-box-login">
         <h4 class="text-white mb-3 text-center">Вход</h4>
+        
+        <!-- Информационная плашка для окна входа -->
+        <div class="alert py-2 px-3 mb-3 text-start" style="font-size: 0.8rem; line-height: 1.3; background-color: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); color: #ffcd39; border-radius: 8px;">
+            <i class="bi bi-info-circle me-1"></i> Это неофициальный сервис. Ваш пароль от <b>ЛК LMS здесь не сработает</b>. Если вы заходите сюда в первый раз — сначала зарегистрируйтесь.
+        </div>
+
         <input type="email" id="auth-email" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Почта @edu.centraluniversity.ru">
-        <input type="password" id="auth-pass" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Пароль">
+        <input type="password" id="auth-pass" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Пароль от этого сервиса">
+        
         <button class="btn btn-primary w-100 mb-2" onclick="authLogin()">Войти</button>
         <div class="text-center mt-3">
-            <a href="#" class="text-muted small" onclick="switchAuthView('register')">Нет аккаунта? Зарегистрироваться</a>
+            <a href="#" class="text-muted small" onclick="switchAuthView('register')">Впервые здесь? Зарегистрироваться</a>
         </div>
         <div id="auth-error" class="text-danger small mt-2 text-center"></div>
     </div>
 
+
     <div class="auth-box d-none" id="auth-box-register">
         <h4 class="text-white mb-3 text-center">Регистрация</h4>
+        
+        <!-- Информационная плашка для пользователей -->
+        <div class="alert py-2 px-3 mb-3 text-start" style="font-size: 0.8rem; line-height: 1.3; background-color: rgba(13, 110, 253, 0.1); border: 1px solid rgba(13, 110, 253, 0.3); color: #8bb9fe; border-radius: 8px;">
+            <i class="bi bi-shield-lock me-1"></i> <b>Не нужно вводить свой пароль от ЛК!</b><br>
+            Придумайте любой новый пароль для этого сайта. Ваша студенческая почта нужна только для отправки кода, чтобы мы убедились, что вы учитесь в ЦУ.
+        </div>
+
         <input type="email" id="reg-email" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Почта @edu.centraluniversity.ru">
-        <input type="password" id="reg-pass" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Придумайте пароль">
+        <input type="password" id="reg-pass" class="form-control bg-dark text-white border-secondary mb-3" placeholder="Придумайте новый пароль">
+        
         <button class="btn btn-success w-100 mb-2" id="btn-reg" onclick="authRegister()">Зарегистрироваться</button>
         <div class="text-center mt-3">
             <a href="#" class="text-muted small" onclick="switchAuthView('login')">Уже есть аккаунт? Войти</a>
@@ -252,7 +268,7 @@
                     <label class="btn btn-outline-primary btn-sm" for="mode-cards" title="Выбор предметов и преподавателей вручную"><i class="bi bi-grid-fill"></i> Предметы</label>
 
                     <input type="radio" class="btn-check" name="ui-mode" id="mode-personal" autocomplete="off" onchange="switchMode('personal')">
-                    <label class="btn btn-outline-primary btn-sm" for="mode-personal" title="Ваше личное расписание из TiMe"><i class="bi bi-person-badge"></i> Мои пары</label>
+                    <label class="btn btn-outline-primary btn-sm" for="mode-personal" title="Ваше личное расписание из Календаря"><i class="bi bi-person-badge"></i> Мои пары</label>
                 </div>
 
                 <!-- ============================ -->
@@ -310,7 +326,7 @@
                 <!-- ============================ -->
                 <div id="view-personal" class="d-none" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
                     <div class="mb-3 flex-shrink-0">
-                        <label class="form-label text-white small">Импорт с Яндекса (TiMe)</label>
+                        <label class="form-label text-white small">Импорт с Яндекс.Календаря</label>
                         <div class="input-group input-group-sm">
                             <input type="email" id="import-email" class="form-control bg-dark text-white border-secondary" placeholder="Почта @edu.centraluniversity.ru">
                             <button class="btn btn-success" onclick="importPersonalSchedule()" id="btn-import">

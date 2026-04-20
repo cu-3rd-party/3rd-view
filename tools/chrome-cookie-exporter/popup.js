@@ -108,15 +108,13 @@ async function loadTimeEnvLines() {
   return `TIME_TEAM_ID=${teamId}\nTIME_COOKIE=${joinCookieString(cookies)}\nTIME_CSRF=${csrfValue}`;
 }
 
-async function loadKTalkAuth() {
-  const token = await getStorageValue("ktalkAuthorization");
-  if (!token) {
-    throw new Error(
-      "No KTalk Authorization header captured yet. Open KTalk, trigger any API request, then try again."
-    );
+async function loadKTalkCookies() {
+  const cookies = await getAllCookies({ url: KTALK_URL });
+  if (!cookies.length) {
+    throw new Error("No KTalk cookies found. Open centraluniversity.ktalk.ru and sign in first.");
   }
 
-  return token;
+  return joinCookieString(cookies);
 }
 
 async function runCopy(loader, successMessage) {
@@ -139,5 +137,5 @@ document.getElementById("copy-time").addEventListener("click", () => {
 });
 
 document.getElementById("copy-ktalk").addEventListener("click", () => {
-  runCopy(loadKTalkAuth, "Copied KTalk auth token for ktalk_auth.txt.");
+  runCopy(loadKTalkCookies, "Copied KTalk Cookie header for ktalk_auth.txt.");
 });

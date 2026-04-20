@@ -209,6 +209,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "ktalk-bot" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "psycopg2-binary" },
     { name = "pydantic-settings" },
@@ -228,6 +229,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.136.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "ktalk-bot", specifier = ">=1.1.1" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "pydantic-settings", specifier = ">=2.11.0" },
@@ -339,6 +341,32 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
+]
+
+[[package]]
+name = "ktalk-bot"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/9f/524772c6d85b82cde305f858afcad2ae9577157482f2cc85c040931d5653/ktalk_bot-1.1.1.tar.gz", hash = "sha256:cd8e5aae3c6529a0c90cd10f89f630b49f72b91338e49f5962c489b8854288dd", size = 57797, upload-time = "2026-04-17T15:55:17.231Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/aa/97ccad16c91288e654b5ad06494f3793700368e635eac895b1df53e3232e/ktalk_bot-1.1.1-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:cffd8f3ffc33062be30ae75a38ba45d2d38d6069baf5a3531f08397e9245c94d", size = 3849568, upload-time = "2026-04-17T15:55:18.418Z" },
+    { url = "https://files.pythonhosted.org/packages/74/e4/fb955e788aa4b82d0f0ac2b556a4ebe1b374c8a7825357f07ba5251b5fa7/ktalk_bot-1.1.1-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:5f60e96cbc96bf5da9c8b62e3fb41e1989d444e4ac4d44414a2abd1990303da7", size = 3477032, upload-time = "2026-04-17T15:54:58.626Z" },
+    { url = "https://files.pythonhosted.org/packages/94/72/502af9c8da6d6db50ce7776887cf41471e68f5c2d840ba91f95d0ffbdefa/ktalk_bot-1.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:106ad617b2da2cd789999a7ff43c2630fd1e711e8ccb3012ba2750d30e3bc2a5", size = 4054167, upload-time = "2026-04-17T15:55:11.124Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/d4/b576731ae4cb1110878bf7578667c28adc60523e047f600ee101c7aa015c/ktalk_bot-1.1.1-cp312-cp312-musllinux_1_2_armv7l.whl", hash = "sha256:35c858da5fbca395c109c16cacf4bbd9605e135a3f81fea7aa79520a95d15ba4", size = 3691131, upload-time = "2026-04-17T15:55:29.023Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/04/33e5fee42b3071c2ab5ac373475ff784680f7606dabf104d4a4db8c23521/ktalk_bot-1.1.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:2f7706cf61910ec277b87bbfbfe25f6b4f4b3bba115143366ee7ad77ce4f8447", size = 4355344, upload-time = "2026-04-17T15:55:42.754Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/c7/36a65efa6b763a794c78216721f8debf7353436752564098c11d14f928c9/ktalk_bot-1.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:d54934ee0e70e2b1d08ba324a5e10ab050843cf47c5e3beb743707f09447087c", size = 3238510, upload-time = "2026-04-17T15:55:20.258Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/85/57943f8a3f7f4c9a191da79ddb324198db662ffe46c359bf496cdcea4b5d/ktalk_bot-1.1.1-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:2a57e7b01a88380e9b144364351cf7950d332dd18a12c591ef1c59e2782ec345", size = 3849618, upload-time = "2026-04-17T15:55:40.774Z" },
+    { url = "https://files.pythonhosted.org/packages/34/2a/087844c9aa3228a6976f14eff22eb5eb4770229d3fce6df4188e8e40103b/ktalk_bot-1.1.1-cp313-cp313-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:10c0c72c149aa98da1c95ebada55f04a0b0d64106e4fe6612e3b2cf56ac867c7", size = 3477010, upload-time = "2026-04-17T15:55:09.598Z" },
+    { url = "https://files.pythonhosted.org/packages/53/a6/0b83f83927dfeb0ef0ea9abe3589adbee0819d77492ccfa2b722097ac024/ktalk_bot-1.1.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2b1399da080fafbafc3652e11d213166cd832c2210e4b89249b6c8f20cdbdc16", size = 4053508, upload-time = "2026-04-17T15:55:22.72Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/0d/aa0ac331e3a548c8076b6be4e133ec9dbf43d80a87b2255a838b6ff9befa/ktalk_bot-1.1.1-cp313-cp313-musllinux_1_2_armv7l.whl", hash = "sha256:66033e55fa7ab8c0aef4bfe14d15d278b0c3739a1abfb8d3c8fc423a5e7fff6a", size = 3691665, upload-time = "2026-04-17T15:55:25.319Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/22/8a7e499bdf8db805826efdf8d54eedf796b4a06cc40a7e718dd9619354ef/ktalk_bot-1.1.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:ffa96e0b8779ae2a0a9fc5925025c30cfaee73e9a1c36861d34036b2cf2f9033", size = 4354963, upload-time = "2026-04-17T15:55:13.934Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/2d/54f406c0700e539a990363f364a5355d6a58bca46883f7ddea8244774eaa/ktalk_bot-1.1.1-cp313-cp313-win_amd64.whl", hash = "sha256:2cd235e81d738bbe13bb03a5cea74fd2d3dba5d1fd264e0e5901d9681b403ada", size = 3238450, upload-time = "2026-04-17T15:55:39.214Z" },
+    { url = "https://files.pythonhosted.org/packages/66/d2/88a8bac0a1e39c0720c64cdd2919873bc62538cd7f15064381f27bc8c8ce/ktalk_bot-1.1.1-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:43107395b8782381bd0998663268a7d17be25a54d4c2130e06b1bda29be2e5d1", size = 3847118, upload-time = "2026-04-17T15:55:36.601Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/f4/e96140f1103b5cd485396261b6903810b6cbee6ae939473d9b569c1d1369/ktalk_bot-1.1.1-cp314-cp314-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:ffb6e6dea8495f02eeca69ed5477c423651305da6f3b49f6a48915cf7aa6d368", size = 3477377, upload-time = "2026-04-17T15:55:08.101Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/bc/9258ea1a197b6f3dd07f9ddcea2bcd602d69fa93826b5681274990f63515/ktalk_bot-1.1.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d814cadd002664fa19daac970ee07275831aa59faf73f9bb1852951f51169ad6", size = 4053699, upload-time = "2026-04-17T15:55:04.019Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/d4/85a73f6b8fdd0813e62aadbbcf7a1762e576ffe05a65521754cbfb803a76/ktalk_bot-1.1.1-cp314-cp314-musllinux_1_2_armv7l.whl", hash = "sha256:04b9e585035cb4448fa05d5ae366ff5707f7795462a6cb8b450f3fa4c75599e3", size = 3691704, upload-time = "2026-04-17T15:55:00.324Z" },
+    { url = "https://files.pythonhosted.org/packages/76/23/1f922e43ca7391f682717a8ef5ce0203e6686e5425a71d24153c0a7cc2d5/ktalk_bot-1.1.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:b706ab7af57b047bba95a1fa86fc66971e668cc933fa8fd12599551943fa7521", size = 4356547, upload-time = "2026-04-17T15:55:05.903Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/da/4f56477a6957c8c33a7fc833ec3f403bbe19ebc2e31e780d681271e0bd10/ktalk_bot-1.1.1-cp314-cp314-win_amd64.whl", hash = "sha256:25181e9b99490215aff210b82f3f0f6d74f83e3f7bcee1e56808ff35f4a1ca8d", size = 3234941, upload-time = "2026-04-17T15:55:02.054Z" },
 ]
 
 [[package]]

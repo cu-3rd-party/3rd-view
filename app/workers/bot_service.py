@@ -67,7 +67,7 @@ async def join_event_task(
             return
         settings = get_settings()
         try:
-            await asyncio.to_thread(connect, link, 10, str(settings.ktalk_auth_file))
+            await asyncio.to_thread(connect, link, 10, str(settings.ktalk_auth_file), settings.ktalk_auth)
             mark_as_visited(event_id, instance_start_ts, start_time_iso)
             logger.info("Bot completed event %s", event_name)
         except Exception:
@@ -132,7 +132,7 @@ async def auto_sync_loop() -> None:
             await asyncio.sleep(20)
             continue
         try:
-            ktalk = KTalkAPI(auth_file_path=str(settings.ktalk_auth_file))
+            ktalk = KTalkAPI(auth_file_path=str(settings.ktalk_auth_file), auth_value=settings.ktalk_auth)
             recordings = [
                 conference
                 for conference in ktalk.get_all_history_records(max_pages=5)

@@ -6,6 +6,4 @@ __pycache__/
 .venv/
 venv/
 .env
-cookie.txt
-ktalk_auth.txt
 postgres_data/

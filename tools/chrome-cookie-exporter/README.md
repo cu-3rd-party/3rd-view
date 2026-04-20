@@ -6,7 +6,7 @@ Minimal Chrome extension for copying the auth values this project needs.
 
 1. `cookie.txt`: combined Yandex cookies for Calendar access
 2. `.env` lines: `TIME_TEAM_ID`, `TIME_COOKIE`, and `TIME_CSRF`
-3. `ktalk_auth.txt`: the exact `Authorization` header value from a KTalk request
+3. `ktalk_auth.txt`: the full KTalk `Cookie` header value
 
 ## Load in Chrome
 
@@ -27,5 +27,5 @@ Minimal Chrome extension for copying the auth values this project needs.
 
 - The extension only reads cookies from the three target services.
 - Time team id is taken from observed `time.cu.ru/api/v4/teams/.../channels/...` request URLs.
-- KTalk auth is taken from the real `Authorization` request header and copied as-is, including the `Session` prefix.
+- KTalk auth is copied from browser cookies and written as a single `Cookie` header string.
 - If Time CSRF is missing, refresh `time.cu.ru` after login and try again.

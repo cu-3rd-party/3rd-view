@@ -28,7 +28,7 @@ Required runtime files:
 
 1. `.env`
 2. `cookie.txt`
-3. `ktalk_auth.txt`
+3. `ktalk_auth.txt` with the full KTalk `Cookie` header value, or `KTALK_AUTH` in `.env`
 
 The app reads configuration only from environment variables and file paths declared in `.env`.
 
@@ -39,6 +39,8 @@ Install dependencies:
 ```bash
 uv sync --dev
 ```
+
+The project uses the published `ktalk-bot` package from PyPI for KTalk history parsing and room joins.
 
 Run the API:
 

@@ -19,7 +19,7 @@ async def sync_recordings_generator():
     settings = get_settings()
     try:
         yield emit("progress", "🔌 Подключение к KTalk API...")
-        ktalk = KTalkAPI(auth_file_path=str(settings.ktalk_auth_file))
+        ktalk = KTalkAPI(auth_file_path=str(settings.ktalk_auth_file), auth_value=settings.ktalk_auth)
         conferences = ktalk.get_all_history_records(max_pages=10)
         recordings = [conference for conference in conferences if conference.get("has_recording") and conference.get("recording_url")]
         yield emit("progress", f"📥 Загружено {len(conferences)} конференций, из них {len(recordings)} с записями.")

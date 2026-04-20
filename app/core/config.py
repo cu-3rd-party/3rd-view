@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     time_team_id: str | None = None
     time_cookie: str | None = None
     time_csrf: str | None = None
+    ktalk_auth: str | None = None
     cookie_file: Path = BASE_DIR / "cookie.txt"
     ktalk_auth_file: Path = BASE_DIR / "ktalk_auth.txt"
     templates_dir: Path = BASE_DIR / "app" / "templates"

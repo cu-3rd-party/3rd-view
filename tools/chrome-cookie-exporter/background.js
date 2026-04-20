@@ -1,21 +1,4 @@
-const KTALK_URL_PATTERN = "https://centraluniversity.ktalk.ru/*";
 const TIME_API_URL_PATTERN = "https://time.cu.ru/api/v4/teams/*";
-
-chrome.webRequest.onBeforeSendHeaders.addListener(
-  (details) => {
-    const authorizationHeader = details.requestHeaders?.find(
-      (header) => header.name.toLowerCase() === "authorization"
-    );
-
-    if (!authorizationHeader?.value) {
-      return;
-    }
-
-    chrome.storage.local.set({ ktalkAuthorization: authorizationHeader.value });
-  },
-  { urls: [KTALK_URL_PATTERN] },
-  ["requestHeaders"]
-);
 
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {

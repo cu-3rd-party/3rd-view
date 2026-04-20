@@ -1,9 +1,9 @@
-# Файл: integrations/yandex_api.py
 import requests
 import re
 import datetime
 import logging
 
+# Исправлено имя логгера на logger
 logger = logging.getLogger("yandex_api")
 
 class YandexCalendarAPI:
@@ -25,7 +25,8 @@ class YandexCalendarAPI:
         self.reload_session()
 
     def reload_session(self):
-        logger_yandex.info("♻️ Перезагрузка сессии Яндекс API...")
+        # Исправлено с logger_yandex на logger
+        logger.info("♻️ Перезагрузка сессии Яндекс API...")
         self.session.cookies.clear()
         self.mail_ckey = None
         self.calendar_ckey = None
@@ -43,7 +44,8 @@ class YandexCalendarAPI:
             self.session.cookies.update(cookies)
             self.uid = cookies.get('yandexuid')
         except FileNotFoundError:
-            logger_yandex.error(f"❌ Файл {self.cookie_path} не найден.")
+            # Исправлено с logger_yandex на logger
+            logger.error(f"❌ Файл {self.cookie_path} не найден.")
 
     def _get_calendar_ckey(self):
         if self.calendar_ckey: return True
@@ -133,7 +135,8 @@ class YandexCalendarAPI:
                         })
                 return detailed_events
             except Exception as e:
-                logger_yandex.error(f"Error in get_detailed_events: {e}")
+                # Исправлено с logger_yandex на logger
+                logger.error(f"Error in get_detailed_events: {e}")
                 if attempt == 0: self.reload_session()
         return []
 
@@ -169,7 +172,6 @@ class YandexCalendarAPI:
                 
                 desc = str(data.get('description') or "").strip()
                 
-                # ИДЕАЛЬНЫЙ ПАРСИНГ УЧАСТНИКОВ (ИЗ ТВОЕГО СКРИПТА)
                 emails = [e.lower() for e in (data.get('attendees') or []) if isinstance(e, str) and "@" in e]
                 if isinstance(data.get('attendees'), dict):
                     emails = [k.lower() for k in data['attendees'].keys() if "@" in k]
@@ -178,6 +180,7 @@ class YandexCalendarAPI:
                 
                 return desc, list(set(emails))
             except Exception as e:
-                logger_yandex.error(f"Error in get_event_details: {e}")
+                # Исправлено с logger_yandex на logger
+                logger.error(f"Error in get_event_details: {e}")
                 if attempt == 0: self.reload_session()
         return "", []

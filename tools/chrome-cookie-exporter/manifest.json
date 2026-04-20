@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "CU Cookie Exporter",
+  "version": "0.1.0",
+  "description": "Copy required Yandex Calendar, Time, and KTalk auth values.",
+  "permissions": ["cookies", "clipboardWrite", "storage", "webRequest"],
+  "host_permissions": [
+    "https://calendar.yandex.ru/*",
+    "https://yandex.ru/*",
+    "https://passport.yandex.ru/*",
+    "https://time.cu.ru/*",
+    "https://centraluniversity.ktalk.ru/*"
+  ],
+  "action": {
+    "default_title": "CU Cookie Exporter",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

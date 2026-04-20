@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CU Cookie Exporter</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup">
+      <h1>CU Cookie Exporter</h1>
+      <p class="hint">Open the three services in Chrome first so their cookies are available.</p>
+
+      <button id="copy-yandex" type="button">Copy Yandex `cookie.txt`</button>
+      <button id="copy-time" type="button">Copy Time `.env` lines</button>
+      <button id="copy-ktalk" type="button">Copy KTalk `ktalk_auth.txt`</button>
+
+      <pre id="status" class="status">Ready.</pre>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cu-3rd-view"
+version = "0.1.0"
+description = "University calendar backend and worker services"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.136.0",
+  "httpx>=0.28.1",
+  "passlib[bcrypt]>=1.7.4",
+  "psycopg2-binary>=2.9.11",
+  "pydantic-settings>=2.11.0",
+  "pyjwt>=2.12.1",
+  "python-dotenv>=1.1.1",
+  "requests>=2.32.5",
+  "uvicorn[standard]>=0.44.0",
+  "websockets>=15.0.1",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.4",
+]
+
+[project.scripts]
+cu-3rd-view-api = "app.cli:run_api"
+cu-3rd-view-worker = "app.cli:run_worker"
+cu-3rd-view-parse = "app.cli:run_parser"
+cu-3rd-view-add-test-event = "app.cli:run_add_test_event"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

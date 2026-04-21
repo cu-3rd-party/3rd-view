@@ -19,7 +19,13 @@ def create_app(initialize_database: bool = True) -> FastAPI:
             init_db()
         yield
 
-    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app = FastAPI(
+        title=settings.app_name, 
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,

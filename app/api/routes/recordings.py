@@ -52,11 +52,14 @@ async def sync_recordings_generator():
                 yield emit("progress", "🧠 Анализ совпадений (поиск идеальной пары)...")
                 for recording in recordings:
                     try:
-                        rec_dt_str = recording["start_time"].replace("Z", "").split(".")[0] + "+00:00"
-                        rec_dt = datetime.datetime.fromisoformat(rec_dt_str).astimezone(msk_tz)
+                        ts_str = recording["start_time"]
+                        if ts_str.endswith("Z"):
+                            ts_str = ts_str.replace("Z", "+00:00")
+                        # fromisoformat в Python умеет игнорировать лишние доли секунд, если они есть
+                        rec_dt = datetime.datetime.fromisoformat(ts_str).astimezone(msk_tz)
                     except Exception:
                         continue
-                    
+                                        
                     rec_title = f"{recording.get('title', '')} {recording.get('room_name', '')}".lower()
                     rec_date_str = rec_dt.strftime("%Y-%m-%d")
 

@@ -11,11 +11,17 @@ from app.db import db_connection, init_db
 from app.integrations.ktalk_api import KTalkAPI
 from app.integrations.ktalk_bot import connect
 
-
 configure_logging()
 logger = logging.getLogger("bot_service")
 bot_lock = asyncio.Lock()
 KTALK_LINK_PATTERN = re.compile(r"https://centraluniversity\.ktalk\.ru/[a-zA-Z0-9]+")
+
+
+# === ФУНКЦИЯ ДЛЯ УМНОГО СРАВНЕНИЯ НАЗВАНИЙ ===
+def is_similar_title(t1: str, t2: str) -> bool:
+    words1 = set(re.findall(r'[а-яa-z]{4,}', t1.lower()))
+    words2 = set(re.findall(r'[а-яa-z]{4,}', t2.lower()))
+    return len(words1.intersection(words2)) > 0
 
 
 def is_visited(event_id: str, instance_start_ts: str) -> bool:
@@ -31,9 +37,14 @@ def is_visited(event_id: str, instance_start_ts: str) -> bool:
 
 def mark_as_visited(event_id: str, instance_start_ts: str, start_time_iso: str) -> None:
     visited_time = datetime.now(timezone.utc).isoformat()
-    date_str = datetime.fromisoformat(start_time_iso.replace("Z", "+00:00")).astimezone(
+    # Безопасный парсинг для получения даты по Москве
+    if start_time_iso.endswith("Z"):
+        start_time_iso = start_time_iso.replace("Z", "+00:00")
+        
+    date_str = datetime.fromisoformat(start_time_iso).astimezone(
         timezone(timedelta(hours=3))
     ).strftime("%Y-%m-%d")
+    
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -60,8 +71,10 @@ async def join_event_task(
     if delay > 0:
         logger.info("Waiting %s seconds for event %s", int(delay), event_name)
         await asyncio.sleep(delay)
+        
     if is_visited(event_id, instance_start_ts):
         return
+        
     async with bot_lock:
         if is_visited(event_id, instance_start_ts):
             return
@@ -77,33 +90,48 @@ async def join_event_task(
 
 async def bot_join_loop() -> None:
     active_tasks: set[str] = set()
-    msk_tz = timezone(timedelta(hours=3))
     while True:
         try:
-            today_str = datetime.now(msk_tz).strftime("%Y-%m-%d")
+            now_utc = datetime.now(timezone.utc)
+            # Ищем пары с окном от -12 до +24 часов, так мы точно не пропустим ничего из-за часовых поясов
+            start_bound = (now_utc - timedelta(hours=12)).isoformat()
+            end_bound = (now_utc + timedelta(hours=24)).isoformat()
+
             with db_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # Убрали кривой LIKE, теперь берем по диапазону
                     cur.execute(
-                        "SELECT event_id, instance_start_ts, start_time, event_name, link_description FROM calendar_events WHERE start_time LIKE %s",
-                        (f"%{today_str}%",),
+                        "SELECT event_id, instance_start_ts, start_time, event_name, link_description "
+                        "FROM calendar_events WHERE start_time >= %s AND start_time <= %s",
+                        (start_bound, end_bound),
                     )
                     events = cur.fetchall()
+                    
             now = datetime.now(timezone.utc)
             for event in events:
                 event_id = str(event["event_id"])
                 instance_start_ts = str(event["instance_start_ts"])
                 task_key = f"{event_id}_{instance_start_ts}"
+                
                 if task_key in active_tasks or is_visited(event_id, instance_start_ts):
                     continue
+                    
                 try:
-                    start_time = datetime.fromisoformat(event["start_time"].replace("Z", "+00:00"))
+                    ts_str = event["start_time"]
+                    if ts_str.endswith("Z"):
+                        ts_str = ts_str.replace("Z", "+00:00")
+                    start_time = datetime.fromisoformat(ts_str)
                 except Exception:
                     continue
+                    
                 match = KTALK_LINK_PATTERN.search(event["link_description"] or "")
                 if not match:
                     continue
+                    
                 target_time = start_time + timedelta(seconds=20)
                 delta_seconds = (target_time - now).total_seconds()
+                
+                # Если до пары от -5 до +10 минут
                 if -300 <= delta_seconds <= 600:
                     active_tasks.add(task_key)
                     task = asyncio.create_task(
@@ -121,23 +149,21 @@ async def bot_join_loop() -> None:
             logger.exception("Bot join loop failed")
         await asyncio.sleep(60)
 
+
 async def auto_sync_loop() -> None:
-    target_times = {"11:25", "12:55", "14:25", "15:55", "17:25", "18:55", "20:25", "21:55"}
     msk_tz = timezone(timedelta(hours=3))
     settings = get_settings()
 
     while True:
-        now_msk = datetime.now(msk_tz)
-        if now_msk.strftime("%H:%M") not in target_times:
-            await asyncio.sleep(20)
-            continue
         try:
             ktalk = KTalkAPI(auth_file_path=str(settings.ktalk_auth_file))
+            # Берем больше страниц для надежности (5 -> 10)
             recordings = [
                 conference
-                for conference in ktalk.get_all_history_records(max_pages=5)
+                for conference in ktalk.get_all_history_records(max_pages=10)
                 if conference.get("has_recording") and conference.get("recording_url")
             ]
+            
             if recordings:
                 with db_connection() as conn:
                     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -148,30 +174,34 @@ async def auto_sync_loop() -> None:
                     with conn.cursor() as cur:
                         for rec in recordings:
                             try:
-                                rec_dt = datetime.fromisoformat(rec["start_time"].replace("Z", "").split(".")[0] + "+00:00").astimezone(msk_tz)
+                                # Безопасный парсинг времени Толка
+                                ts_str = rec["start_time"]
+                                if ts_str.endswith("Z"):
+                                    ts_str = ts_str.replace("Z", "+00:00")
+                                rec_dt = datetime.fromisoformat(ts_str).astimezone(msk_tz)
                             except Exception:
                                 continue
                             
                             rec_title = f"{rec.get('title', '')} {rec.get('room_name', '')}".lower()
 
                             best_match = None
-                            min_diff = 2.0
+                            min_diff = 2.0  # Максимальное расхождение - 2 часа
 
                             for db_event in db_events:
                                 try:
-                                    # ИСПОЛЬЗУЕМ start_time ДЛЯ МАТЕМАТИКИ
-                                    yandex_dt = datetime.fromisoformat(db_event["start_time"].replace("Z", "+00:00")).astimezone(msk_tz)
+                                    y_ts_str = db_event["start_time"]
+                                    if y_ts_str.endswith("Z"):
+                                        y_ts_str = y_ts_str.replace("Z", "+00:00")
+                                    yandex_dt = datetime.fromisoformat(y_ts_str).astimezone(msk_tz)
                                 except Exception:
                                     continue
                                 
-                                if rec_dt.date() != yandex_dt.date():
-                                    continue
+                                diff_hours = abs((rec_dt - yandex_dt).total_seconds()) / 3600.0
                                 
-                                if rec_title in db_event["event_name"].lower() or db_event["event_name"].lower() in rec_title:
-                                    diff_hours = abs((rec_dt - yandex_dt).total_seconds()) / 3600.0
-                                    if diff_hours < min_diff:
-                                        min_diff = diff_hours
-                                        best_match = db_event
+                                # Проверяем, что разница < 2 часов И названия пересекаются
+                                if diff_hours < min_diff and is_similar_title(db_event["event_name"], rec_title):
+                                    min_diff = diff_hours
+                                    best_match = db_event
 
                             if best_match:
                                 cur.execute(
@@ -180,7 +210,10 @@ async def auto_sync_loop() -> None:
                                     (yandex_event_id, yandex_instance_start_ts, ktalk_id, recording_url, recording_date)
                                     VALUES (%s, %s, %s, %s, %s)
                                     ON CONFLICT (yandex_event_id, yandex_instance_start_ts) DO UPDATE SET
-                                    recording_url = EXCLUDED.recording_url,
+                                    recording_url = CASE 
+                                        WHEN event_recordings.recording_url LIKE '%' || EXCLUDED.recording_url || '%' THEN event_recordings.recording_url 
+                                        ELSE event_recordings.recording_url || ',' || EXCLUDED.recording_url 
+                                    END,
                                     ktalk_id = EXCLUDED.ktalk_id
                                     """,
                                     (
@@ -196,7 +229,10 @@ async def auto_sync_loop() -> None:
                     logger.info("Recording sync matched %s rows", matched)
         except Exception:
             logger.exception("Auto sync loop failed")
-        await asyncio.sleep(61)
+            
+        # Запускаем синхронизацию записей раз в 90 минут (вместо привязки к конкретным минутам)
+        await asyncio.sleep(5400) 
+
 
 async def main() -> None:
     init_db()

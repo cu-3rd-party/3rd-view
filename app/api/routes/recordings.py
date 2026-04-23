@@ -26,57 +26,78 @@ async def sync_recordings_generator():
 
         with db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT event_id, start_time, event_name FROM calendar_events")
+                # Берем и instance_start_ts (для БД), и start_time (для вычислений)
+                cur.execute("SELECT event_id, instance_start_ts, start_time, event_name FROM calendar_events")
                 db_events_raw = cur.fetchall()
 
-            parsed_db_events = [
-                {
-                    "event_id": event["event_id"],
-                    "start_dt": datetime.datetime.fromisoformat(event["start_time"].replace("Z", "+00:00")),
-                    "name": event["event_name"].lower(),
-                }
-                for event in db_events_raw
-            ]
+            parsed_db_events = []
+            msk_tz = datetime.timezone(datetime.timedelta(hours=3))
+            
+            for event in db_events_raw:
+                try:
+                    # ИСПРАВЛЕНИЕ 1: Для математики берем ИМЕННО start_time!
+                    yandex_dt = datetime.datetime.fromisoformat(event["start_time"].replace("Z", "+00:00")).astimezone(msk_tz)
+                    
+                    parsed_db_events.append({
+                        "event_id": event["event_id"],
+                        "instance_start_ts": event["instance_start_ts"],
+                        "dt": yandex_dt,
+                        "name": event["event_name"].lower()
+                    })
+                except Exception:
+                    continue
 
             matched_count = 0
-            msk_tz = datetime.timezone(datetime.timedelta(hours=3))
             with conn.cursor() as cur:
-                yield emit("progress", "🧠 Анализ совпадений (название/комната + день недели + время)...")
+                yield emit("progress", "🧠 Анализ совпадений (поиск идеальной пары)...")
                 for recording in recordings:
-                    raw_date = recording["start_time"].replace("Z", "")
-                    clean_date = raw_date.split(".")[0] + "+00:00"
                     try:
-                        rec_dt = datetime.datetime.fromisoformat(clean_date).astimezone(msk_tz)
+                        rec_dt_str = recording["start_time"].replace("Z", "").split(".")[0] + "+00:00"
+                        rec_dt = datetime.datetime.fromisoformat(rec_dt_str).astimezone(msk_tz)
                     except Exception:
                         continue
+                    
                     rec_title = f"{recording.get('title', '')} {recording.get('room_name', '')}".lower()
                     rec_date_str = rec_dt.strftime("%Y-%m-%d")
+
+                    # ИСПРАВЛЕНИЕ 2: Ищем наилучшее совпадение по времени
+                    best_match = None
+                    min_diff_hours = 2.0  # Максимальное окно - 2 часа
+
                     for db_event in parsed_db_events:
-                        if db_event["name"] in rec_title or rec_title in db_event["name"]:
-                            if rec_dt.weekday() != db_event["start_dt"].weekday():
-                                continue
-                            rec_hours = rec_dt.hour + rec_dt.minute / 60.0
-                            event_hours = db_event["start_dt"].hour + db_event["start_dt"].minute / 60.0
-                            if abs(rec_hours - event_hours) <= 2.0:
-                                fake_ts = f"ktalk_{recording['recording_id']}"
-                                cur.execute(
-                                    """
-                                    INSERT INTO event_recordings
-                                    (yandex_event_id, yandex_instance_start_ts, ktalk_id, recording_url, transcription_url, is_manual, recording_date)
-                                    VALUES (%s, %s, %s, %s, '', FALSE, %s)
-                                    ON CONFLICT (yandex_event_id, yandex_instance_start_ts) DO UPDATE SET
-                                    recording_url = excluded.recording_url
-                                    """,
-                                    (
-                                        db_event["event_id"],
-                                        fake_ts,
-                                        recording["recording_id"],
-                                        recording["recording_url"],
-                                        rec_date_str,
-                                    ),
-                                )
-                                matched_count += 1
-                                break
+                        if db_event["dt"].date() != rec_dt.date():
+                            continue
+                        
+                        if db_event["name"] not in rec_title and rec_title not in db_event["name"]:
+                            continue
+                        
+                        time_diff_hours = abs((db_event["dt"] - rec_dt).total_seconds()) / 3600.0
+                        
+                        # Если эта пара ближе по времени, запоминаем её
+                        if time_diff_hours < min_diff_hours:
+                            min_diff_hours = time_diff_hours
+                            best_match = db_event
+
+                    # Если нашли идеальное совпадение - записываем
+                    if best_match:
+                        cur.execute(
+                            """
+                            INSERT INTO event_recordings
+                            (yandex_event_id, yandex_instance_start_ts, ktalk_id, recording_url, transcription_url, is_manual, recording_date)
+                            VALUES (%s, %s, %s, %s, '', FALSE, %s)
+                            ON CONFLICT (yandex_event_id, yandex_instance_start_ts) DO UPDATE SET
+                            recording_url = excluded.recording_url,
+                            ktalk_id = excluded.ktalk_id
+                            """,
+                            (
+                                best_match["event_id"],
+                                best_match["instance_start_ts"], 
+                                recording["recording_id"],
+                                recording["recording_url"],
+                                rec_date_str,
+                            ),
+                        )
+                        matched_count += 1
             conn.commit()
         yield emit("done", {"count": matched_count})
     except Exception as exc:

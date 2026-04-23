@@ -63,6 +63,7 @@ class KTalkAPI:
         return []
 
     def get_all_history_records(self, max_pages: int = 10) -> list[dict[str, Any]]:
+        max_pages=25
         all_conferences: list[dict[str, Any]] = []
         skip = 0
         top = 25

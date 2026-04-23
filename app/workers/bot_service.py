@@ -121,11 +121,11 @@ async def bot_join_loop() -> None:
             logger.exception("Bot join loop failed")
         await asyncio.sleep(60)
 
-
 async def auto_sync_loop() -> None:
     target_times = {"11:25", "12:55", "14:25", "15:55", "17:25", "18:55", "20:25", "21:55"}
     msk_tz = timezone(timedelta(hours=3))
     settings = get_settings()
+
     while True:
         now_msk = datetime.now(msk_tz)
         if now_msk.strftime("%H:%M") not in target_times:
@@ -141,8 +141,9 @@ async def auto_sync_loop() -> None:
             if recordings:
                 with db_connection() as conn:
                     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                        cur.execute("SELECT event_id, start_time, event_name FROM calendar_events")
+                        cur.execute("SELECT event_id, instance_start_ts, start_time, event_name FROM calendar_events")
                         db_events = cur.fetchall()
+                    
                     matched = 0
                     with conn.cursor() as cur:
                         for rec in recordings:
@@ -150,44 +151,52 @@ async def auto_sync_loop() -> None:
                                 rec_dt = datetime.fromisoformat(rec["start_time"].replace("Z", "").split(".")[0] + "+00:00").astimezone(msk_tz)
                             except Exception:
                                 continue
+                            
                             rec_title = f"{rec.get('title', '')} {rec.get('room_name', '')}".lower()
+
+                            best_match = None
+                            min_diff = 2.0
+
                             for db_event in db_events:
                                 try:
-                                    db_dt = datetime.fromisoformat(db_event["start_time"].replace("Z", "+00:00")).astimezone(msk_tz)
+                                    # ИСПОЛЬЗУЕМ start_time ДЛЯ МАТЕМАТИКИ
+                                    yandex_dt = datetime.fromisoformat(db_event["start_time"].replace("Z", "+00:00")).astimezone(msk_tz)
                                 except Exception:
                                     continue
-                                if (
-                                    rec_title in db_event["event_name"].lower()
-                                    or db_event["event_name"].lower() in rec_title
-                                ) and rec_dt.weekday() == db_dt.weekday():
-                                    rec_hours = rec_dt.hour + rec_dt.minute / 60.0
-                                    event_hours = db_dt.hour + db_dt.minute / 60.0
-                                    if abs(rec_hours - event_hours) <= 2.0:
-                                        cur.execute(
-                                            """
-                                            INSERT INTO event_recordings
-                                            (yandex_event_id, yandex_instance_start_ts, ktalk_id, recording_url, recording_date)
-                                            VALUES (%s, %s, %s, %s, %s)
-                                            ON CONFLICT (yandex_event_id, yandex_instance_start_ts) DO UPDATE SET
-                                            recording_url = EXCLUDED.recording_url,
-                                            ktalk_id = EXCLUDED.ktalk_id
-                                            """,
-                                            (
-                                                db_event["event_id"],
-                                                f"ktalk_{rec['recording_id']}",
-                                                rec["recording_id"],
-                                                rec["recording_url"],
-                                                rec_dt.strftime("%Y-%m-%d"),
-                                            ),
-                                        )
-                                        matched += 1
-                                        break
+                                
+                                if rec_dt.date() != yandex_dt.date():
+                                    continue
+                                
+                                if rec_title in db_event["event_name"].lower() or db_event["event_name"].lower() in rec_title:
+                                    diff_hours = abs((rec_dt - yandex_dt).total_seconds()) / 3600.0
+                                    if diff_hours < min_diff:
+                                        min_diff = diff_hours
+                                        best_match = db_event
+
+                            if best_match:
+                                cur.execute(
+                                    """
+                                    INSERT INTO event_recordings
+                                    (yandex_event_id, yandex_instance_start_ts, ktalk_id, recording_url, recording_date)
+                                    VALUES (%s, %s, %s, %s, %s)
+                                    ON CONFLICT (yandex_event_id, yandex_instance_start_ts) DO UPDATE SET
+                                    recording_url = EXCLUDED.recording_url,
+                                    ktalk_id = EXCLUDED.ktalk_id
+                                    """,
+                                    (
+                                        best_match["event_id"],
+                                        best_match["instance_start_ts"],
+                                        rec["recording_id"],
+                                        rec["recording_url"],
+                                        rec_dt.strftime("%Y-%m-%d"),
+                                    ),
+                                )
+                                matched += 1
                     conn.commit()
                     logger.info("Recording sync matched %s rows", matched)
         except Exception:
             logger.exception("Auto sync loop failed")
         await asyncio.sleep(61)
-
 
 async def main() -> None:
     init_db()

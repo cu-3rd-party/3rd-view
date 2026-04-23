@@ -111,6 +111,16 @@ class YandexCalendarAPI:
                 events_raw = model.get("data", {}).get("events", [])
                 detailed_events = []
                 msk_zone = datetime.timezone(datetime.timedelta(hours=3))
+                
+                # Вспомогательная функция для безопасного парсинга дат
+                def _parse_yandex_time(dt_str: str) -> datetime.datetime:
+                    dt = datetime.datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                    # Если Яндекс вернул время без таймзоны (наивное), значит оно уже по Москве (т.к. мы запросили MSK)
+                    if dt.tzinfo is None:
+                        return dt.replace(tzinfo=msk_zone)
+                    # Если вернул с таймзоной (например Z -> UTC), честно переводим в Москву
+                    return dt.astimezone(msk_zone)
+
                 for event in events_raw:
                     if not isinstance(event, dict):
                         continue
@@ -122,8 +132,8 @@ class YandexCalendarAPI:
                         continue
                     detailed_events.append(
                         {
-                            "start": datetime.datetime.fromisoformat(start_value.replace("Z", "+00:00")).astimezone(msk_zone),
-                            "end": datetime.datetime.fromisoformat(end_value.replace("Z", "+00:00")).astimezone(msk_zone),
+                            "start": _parse_yandex_time(start_value),
+                            "end": _parse_yandex_time(end_value),
                             "name": (event.get("name") or "Занят").strip() or "Занят",
                             "event_id": event.get("id"),
                             "instance_start_ts": event.get("instanceStartTs"),

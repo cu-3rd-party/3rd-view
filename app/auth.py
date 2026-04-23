@@ -12,12 +12,13 @@ from fastapi.security import (
     HTTPBasicCredentials,
     HTTPBearer,
 )
-from passlib.context import CryptContext
+#from passlib.context import CryptContext
+import bcrypt
 
 from app.core.config import get_settings
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+#pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security_jwt = HTTPBearer()
 security_jwt_opt = HTTPBearer(auto_error=False)
 security_basic_opt = HTTPBasic(auto_error=False)
@@ -25,11 +26,20 @@ security_basic = HTTPBasic()
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # Обрезаем до 72 байт, чтобы избежать ошибки bcrypt
+    pwd_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed_password.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    password_byte_enc = plain_password.encode('utf-8')[:72]
+    hashed_password_byte_enc = hashed_password.encode('utf-8')
+    try:
+        return bcrypt.checkpw(password_byte_enc, hashed_password_byte_enc)
+    except ValueError:
+        return False
 
 
 def create_access_token(data: dict) -> str:

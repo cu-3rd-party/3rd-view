@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-8082} --reload
+    env_file:
+      - .env
+    environment:
+      DB_HOST: host.docker.internal  # Направляем на хост-машину
+      DB_PORT: 5432
+    ports:
+      - "${APP_PORT:-8082}:${APP_PORT:-8082}"
+    volumes:
+      - .:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Разрешаем доступ к хосту из Linux-контейнера
+
+  worker:
+    build: .
+    command: uv run cu-3rd-view-worker
+    env_file:
+      - .env
+    environment:
+      DB_HOST: host.docker.internal  # Направляем на хост-машину
+      DB_PORT: 5432
+    volumes:
+      - .:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Разрешаем доступ к хосту из Linux-контейнера

@@ -19,8 +19,6 @@
     <noscript><div><img src="https://mc.yandex.ru/watch/108700924" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
     <!-- /Yandex.Metrika counter -->
 
-
-    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
@@ -170,7 +168,6 @@
             width: 100%;
         }
 
-        /* Точка Яндекса */
         /* Текст Яндекса */
         .ya-title-text {
             font-size: 0.8rem; 
@@ -224,7 +221,6 @@
     <div class="auth-box" id="auth-box-login">
         <h4 class="text-white mb-3 text-center">Вход</h4>
         
-        <!-- Информационная плашка для окна входа -->
         <div class="alert py-2 px-3 mb-3 text-start" style="font-size: 0.8rem; line-height: 1.3; background-color: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); color: #ffcd39; border-radius: 8px;">
             <i class="bi bi-info-circle me-1"></i> Это неофициальный сервис. Ваш пароль от <b>ЛК LMS здесь не сработает</b>. Если вы заходите сюда в первый раз — сначала зарегистрируйтесь.
         </div>
@@ -243,7 +239,6 @@
     <div class="auth-box d-none" id="auth-box-register">
         <h4 class="text-white mb-3 text-center">Регистрация</h4>
         
-        <!-- Информационная плашка для пользователей -->
         <div class="alert py-2 px-3 mb-3 text-start" style="font-size: 0.8rem; line-height: 1.3; background-color: rgba(13, 110, 253, 0.1); border: 1px solid rgba(13, 110, 253, 0.3); color: #8bb9fe; border-radius: 8px;">
             <i class="bi bi-shield-lock me-1"></i> <b>Не нужно вводить свой пароль от ЛК!</b><br>
             Придумайте любой новый пароль для этого сайта. Ваша студенческая почта нужна только для отправки кода, чтобы мы убедились, что вы учитесь в ЦУ.
@@ -382,8 +377,27 @@
         </div>
 
         <!-- Календарь -->
-        <div class="col-md-10">
-            <div id='calendar'></div>
+        <div class="col-md-10" style="display: flex; flex-direction: column; height: calc(100vh - 40px); min-height: 800px;">
+            
+            <!-- Панель выбора учебной недели -->
+            <div class="d-flex justify-content-between align-items-center mb-3 bg-dark p-2 rounded border border-secondary flex-shrink-0" style="background-color: #222226 !important;">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-calendar3 text-primary fs-5 ms-2 me-2"></i>
+                    <span class="text-white fw-bold me-3">Учебные недели:</span>
+                    <select id="week-selector" class="form-select form-select-sm bg-dark text-white border-secondary w-auto" style="cursor: pointer;" onchange="goToWeek(this.value)">
+                        <option value="today">Текущая неделя (сегодня)</option>
+                        <option value="custom" disabled hidden>Другая дата</option>
+                        <!-- Опции добавятся через JS -->
+                    </select>
+                </div>
+                <div class="text-muted small me-2">
+                    Весенний семестр 2026
+                </div>
+            </div>
+
+            <!-- Контейнер календаря -->
+            <div id='calendar' style="flex: 1; min-height: 0;"></div>
+            
         </div>
     </div>
 </div>
@@ -610,15 +624,34 @@
     let cardsSelectedState = JSON.parse(localStorage.getItem('uni_cards_filters')) || {};
     let personalEvents = JSON.parse(localStorage.getItem('uni_personal_events')) || [];
 
+    // Массив дат весеннего семестра 2026 года (понедельники)
+    const semesterWeeks = [
+        { week: "1", label: "1 неделя (2–8 февраля)", date: "2026-02-02" },
+        { week: "2", label: "2 неделя (9–15 февраля)", date: "2026-02-09" },
+        { week: "3", label: "3 неделя (16–22 февраля)", date: "2026-02-16" },
+        { week: "4", label: "4 неделя (23 февраля — 1 марта)", date: "2026-02-23" },
+        { week: "5", label: "5 неделя (2–8 марта)", date: "2026-03-02" },
+        { week: "6", label: "6 неделя (9–15 марта)", date: "2026-03-09" },
+        { week: "7", label: "7 неделя (16–22 марта)", date: "2026-03-16" },
+        { week: "8", label: "8 неделя (23–29 марта)", date: "2026-03-23" },
+        { week: "9", label: "9 неделя (30 марта — 5 апреля)", date: "2026-03-30" },
+        { week: "10", label: "10 неделя (6–12 апреля)", date: "2026-04-06" },
+        { week: "11", label: "11 неделя (13–19 апреля)", date: "2026-04-13" },
+        { week: "12", label: "12 неделя (20–26 апреля)", date: "2026-04-20" },
+        { week: "break", label: "🌴 Каникулы (27 апреля — 10 мая)", date: "2026-04-27" },
+        { week: "break2", label: "🌴 Каникулы (продолжение)", date: "2026-05-04" },
+        { week: "13", label: "13 неделя (11–17 мая)", date: "2026-05-11" },
+        { week: "14", label: "14 неделя (18–24 мая)", date: "2026-05-18" },
+        { week: "15", label: "15 неделя (25–31 мая)", date: "2026-05-25" }
+    ];
+
     document.addEventListener('DOMContentLoaded', async function() {
-        // Если нет токена, останавливаем загрузку интерфейса
         if (!checkAuth()) return;
 
         eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
         addCourseModal = new bootstrap.Modal(document.getElementById('addCourseModal'));
         manualAddModal = new bootstrap.Modal(document.getElementById('manualAddModal'));
 
-        // Восстанавливаем переключатель
         if (document.getElementById(`mode-${currentMode}`)) {
             document.getElementById(`mode-${currentMode}`).checked = true;
         } else {
@@ -627,9 +660,33 @@
         }
         
         await fetchAllCourses();
-        switchMode(currentMode, false); // false = не рефрешить календарь, он еще не создан
+        switchMode(currentMode, false);
+        
+        initWeekSelector();
         initCalendar();
     });
+
+    // Заполнение выпадающего списка недель
+    function initWeekSelector() {
+        const select = document.getElementById('week-selector');
+        let optionsHtml = '<option value="today">Текущая неделя (сегодня)</option>';
+        optionsHtml += '<option value="custom" disabled hidden>Другая дата</option>';
+        
+        semesterWeeks.forEach(w => {
+            optionsHtml += `<option value="${w.date}">${w.label}</option>`;
+        });
+        select.innerHTML = optionsHtml;
+    }
+
+    // Переход к выбранной неделе
+    function goToWeek(dateString) {
+        if (!calendar) return;
+        if (dateString === 'today') {
+            calendar.today();
+        } else {
+            calendar.gotoDate(dateString);
+        }
+    }
 
     async function fetchAllCourses() {
         const res = await authFetch('/api/courses');
@@ -1146,7 +1203,7 @@
     }
 
     // --- РУЧНОЕ ДОБАВЛЕНИЕ ПАР ---
-    let tempManualSeries = []; // Здесь теперь хранятся серии пар
+    let tempManualSeries = []; 
 
     async function openManualAddModal() {
         const select = document.getElementById('manual-select-course');
@@ -1203,7 +1260,7 @@
 
         try {
             const res = await authFetch(`/api/events/search_specific?query=${encodeURIComponent(query)}&teacher=${encodeURIComponent(teacher)}`);
-            tempManualSeries = await res.json(); // Получаем сгруппированные данные
+            tempManualSeries = await res.json(); 
             
             loader.style.display = 'none';
             if (tempManualSeries.length === 0) {
@@ -1212,7 +1269,6 @@
             }
 
             list.innerHTML = tempManualSeries.map((series, i) => {
-                // Проверяем, есть ли хотя бы одна пара из этой серии уже в расписании
                 const isAdded = series.events.some(ev => personalEvents.some(pe => pe.id === ev.id));
                 
                 return `
@@ -1242,7 +1298,6 @@
             const idx = parseInt(cb.value);
             const series = tempManualSeries[idx];
             
-            // Добавляем ВСЕ даты из выбранной серии
             series.events.forEach(ev => {
                 if (!personalEvents.some(pe => pe.id === ev.id)) {
                     personalEvents.push(ev);
@@ -1267,11 +1322,6 @@
     // КАЛЕНДАРЬ FULLCALENDAR
     // ==========================================
     
-
-    // ==========================================
-    // КАЛЕНДАРЬ FULLCALENDAR
-    // ==========================================
-    
     function initCalendar() {
         calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
             initialView: 'timeGridWeek', 
@@ -1282,19 +1332,32 @@
             allDaySlot: false, 
             nowIndicator: true,
             
-            // ФОРМАТ ЗАГОЛОВКОВ И ВРЕМЕНИ СЛЕВА (9:00 вместо 9)
+            // ФОРМАТ ЗАГОЛОВКОВ И ВРЕМЕНИ СЛЕВА
             dayHeaderFormat: { weekday: 'short', day: 'numeric' }, 
             slotLabelFormat: { hour: 'numeric', minute: '2-digit', omitZeroMinute: false }, 
             
             headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
             
+            // Синхронизация селектора при перелистывании календаря
+            datesSet: function(info) {
+                const select = document.getElementById('week-selector');
+                const currentStartStr = info.startStr.split('T')[0]; 
+                
+                const match = semesterWeeks.find(w => w.date === currentStartStr);
+                
+                if (match) {
+                    select.value = match.date; 
+                } else {
+                    select.value = "custom"; 
+                }
+            },
+
             // Кастомный рендер содержимого карточки (Яндекс стиль)
             eventContent: function(arg) {
                 const startTime = arg.event.start.toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
                 const endTime = arg.event.end ? arg.event.end.toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'}) : '';
                 const timeStr = endTime ? `${startTime} – ${endTime}` : startTime;
                 
-                // Берем оригинальное название ровно в том виде, в котором оно пришло (вместе с системным эмодзи)
                 let originalTitle = arg.event.title || '';
 
                 let customHtml = `
@@ -1307,7 +1370,6 @@
             },
 
             events: function(info, success, failure) {
-                // ВОССТАНОВЛЕНА ЛОГИКА ДЛЯ РЕЖИМА "МОЁ РАСПИСАНИЕ"
                 if (currentMode === 'personal') {
                     success(typeof personalEvents !== 'undefined' ? personalEvents : []);
                     return;
@@ -1332,7 +1394,6 @@
 
                 if (filters.length === 0) { success([]); return; }
 
-                // Поддержка и authFetch (если вы используете первую версию файла с авторизацией), и обычного fetch
                 const fetchFunction = (typeof authFetch === 'function') ? authFetch : fetch;
 
                 fetchFunction('/api/events', {
@@ -1340,6 +1401,7 @@
                     body: JSON.stringify({ start: info.startStr, end: info.endStr, filters })
                 }).then(r => r.json()).then(data => success(data)).catch(err => failure(err));
             },
+            
             eventClick: function(info) {
                 const p = info.event.extendedProps;
                 const d = info.event.start;
@@ -1356,7 +1418,6 @@
                 const recBox = document.getElementById('modalRecording');
                 const rec = (p.recordings || {})[dateStr];
                 
-                // Проверка на наличие модалки для ручного сохранения (из второго файла)
                 const templateEventId = p.template_event_id || '';
                 
                 if (rec && rec.url && rec.url !== 'null') {

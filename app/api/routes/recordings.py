@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from psycopg2.extras import RealDictCursor
 
-from app.auth import verify_admin, get_current_user
+from app.auth import verify_admin, get_current_user, verify_user_or_admin
 from app.core.config import get_settings
 from app.db import db_connection
 from app.integrations.ktalk_api import KTalkAPI
@@ -47,6 +47,14 @@ async def sync_recordings_generator():
                 except Exception:
                     continue
 
+            unmatched_table_exists = False
+            with conn.cursor() as cur:
+                try:
+                    cur.execute("SELECT 1 FROM unmatched_recordings LIMIT 1")
+                    unmatched_table_exists = True
+                except Exception:
+                    conn.rollback()
+
             matched_count = 0
             with conn.cursor() as cur:
                 yield emit("progress", "🧠 Анализ совпадений (поиск идеальной пары)...")
@@ -55,7 +63,6 @@ async def sync_recordings_generator():
                         ts_str = recording["start_time"]
                         if ts_str.endswith("Z"):
                             ts_str = ts_str.replace("Z", "+00:00")
-                        # fromisoformat в Python умеет игнорировать лишние доли секунд, если они есть
                         rec_dt = datetime.datetime.fromisoformat(ts_str).astimezone(msk_tz)
                     except Exception:
                         continue
@@ -63,9 +70,8 @@ async def sync_recordings_generator():
                     rec_title = f"{recording.get('title', '')} {recording.get('room_name', '')}".lower()
                     rec_date_str = rec_dt.strftime("%Y-%m-%d")
 
-                    # ИСПРАВЛЕНИЕ 2: Ищем наилучшее совпадение по времени
                     best_match = None
-                    min_diff_hours = 2.0  # Максимальное окно - 2 часа
+                    min_diff_hours = 2.0 
 
                     for db_event in parsed_db_events:
                         if db_event["dt"].date() != rec_dt.date():
@@ -76,12 +82,10 @@ async def sync_recordings_generator():
                         
                         time_diff_hours = abs((db_event["dt"] - rec_dt).total_seconds()) / 3600.0
                         
-                        # Если эта пара ближе по времени, запоминаем её
                         if time_diff_hours < min_diff_hours:
                             min_diff_hours = time_diff_hours
                             best_match = db_event
 
-                    # Если нашли идеальное совпадение - записываем
                     if best_match:
                         cur.execute(
                             """
@@ -101,6 +105,28 @@ async def sync_recordings_generator():
                             ),
                         )
                         matched_count += 1
+                        
+                        if unmatched_table_exists:
+                            cur.execute("DELETE FROM unmatched_recordings WHERE ktalk_id = %s", (recording["recording_id"],))
+                    else:
+                        if unmatched_table_exists:
+                            cur.execute(
+                                """
+                                INSERT INTO unmatched_recordings (ktalk_id, title, start_time, recording_url, room_name)
+                                VALUES (%s, %s, %s, %s, %s)
+                                ON CONFLICT (ktalk_id) DO UPDATE SET
+                                title = EXCLUDED.title,
+                                room_name = EXCLUDED.room_name
+                                """,
+                                (
+                                    recording["recording_id"],
+                                    recording.get("title", ""),
+                                    recording.get("start_time", ""),
+                                    recording["recording_url"],
+                                    recording.get("room_name", "")
+                                )
+                            )
+                            
             conn.commit()
         yield emit("done", {"count": matched_count})
     except Exception as exc:
@@ -178,3 +204,28 @@ async def delete_suggested_recording(suggestion_id: int, admin: str = Depends(ve
             cur.execute("DELETE FROM suggested_recordings WHERE id = %s", (suggestion_id,))
         conn.commit()
     return {"status": "ok"}
+
+
+@router.get("/api/recordings/unmatched")
+async def get_unmatched_recordings(user: dict = Depends(verify_user_or_admin)) -> list[dict]:
+    query = """
+        SELECT ktalk_id, title, start_time, recording_url, room_name, created_at
+        FROM unmatched_recordings
+        WHERE recording_url NOT IN (SELECT suggested_url FROM suggested_recordings)
+        AND recording_url NOT IN (SELECT recording_url FROM event_recordings WHERE is_manual=TRUE)
+        ORDER BY start_time DESC
+    """
+    with db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            try:
+                cur.execute(query)
+                results = cur.fetchall()
+            except Exception:
+                conn.rollback()
+                results = []
+            
+    for row in results:
+        if row.get("created_at"):
+            row["created_at"] = row["created_at"].isoformat()
+            
+    return results

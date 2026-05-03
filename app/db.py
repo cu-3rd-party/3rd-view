@@ -72,6 +72,15 @@ CREATE TABLE IF NOT EXISTS suggested_recordings (
     suggested_by_email TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS unmatched_recordings (
+    id SERIAL PRIMARY KEY,
+    ktalk_id TEXT UNIQUE,
+    title TEXT,
+    start_time TEXT,
+    recording_url TEXT,
+    room_name TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

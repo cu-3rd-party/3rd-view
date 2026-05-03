@@ -400,6 +400,9 @@
                             <option value="with_rec">Только с записью</option>
                             <option value="no_rec">Только без записей</option>
                         </select>
+                        <button class="btn btn-sm btn-outline-warning ms-3 fw-bold" onclick="openUnmatchedModal()">
+                            <i class="bi bi-database-exclamation"></i> Непривязанные записи
+                        </button>
                     </div>
                 </div>
                 <div class="text-muted small me-2 mt-2 mt-md-0">
@@ -1530,6 +1533,84 @@
             }
         } catch (e) {
             alert('Ошибка соединения. Попробуйте еще раз.');
+        }
+    }
+
+    async function openUnmatchedModal() {
+        if (!document.getElementById('unmatchedModal')) {
+            const modalHtml = `
+            <div class="modal fade" id="unmatchedModal" tabindex="-1">
+              <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                  <div class="modal-header border-bottom-0">
+                    <h5 class="modal-title text-warning"><i class="bi bi-database-exclamation"></i> Непривязанные записи</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body py-1">
+                    <p class="small text-muted mb-3">
+                        Здесь показаны записи из KTalk, для которых система не смогла автоматически найти подходящую пару в расписании. 
+                        Вы можете скопировать нужную ссылку, найти её пару в календаре и вручную предложить её через кнопку "Предложить запись".
+                    </p>
+                    <div id="unmatched-loader" class="text-center d-none">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    </div>
+                    <div id="unmatched-list" class="list-group" style="max-height: 50vh; overflow-y: auto;">
+                    </div>
+                  </div>
+                  <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        const modalEl = document.getElementById('unmatchedModal');
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+        
+        const list = document.getElementById('unmatched-list');
+        const loader = document.getElementById('unmatched-loader');
+        list.innerHTML = '';
+        loader.classList.remove('d-none');
+        
+        try {
+            const res = await authFetch('/api/recordings/unmatched');
+            const data = await res.json();
+            loader.classList.add('d-none');
+            
+            if (data.length === 0) {
+                list.innerHTML = '<div class="text-muted small text-center p-3">Нет непривязанных записей.</div>';
+                return;
+            }
+            
+            data.forEach(s => {
+                let eventDtStr = 'Неизвестная дата';
+                let ts = s.start_time;
+                if (ts) {
+                    if (ts.endsWith('Z')) ts = ts.replace('Z', '+00:00');
+                    const eventDate = new Date(ts);
+                    if (!isNaN(eventDate)) eventDtStr = eventDate.toLocaleString('ru-RU');
+                }
+                
+                list.innerHTML += `
+                <div class="list-group-item bg-dark border-secondary text-white mb-2 rounded">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div style="flex:1; min-width:0;">
+                            <strong>${s.title || 'Без названия'}</strong> <span class="text-muted small">(${eventDtStr})</span><br>
+                            <span class="small text-info">Аудитория: ${s.room_name || 'Неизвестно'}</span><br>
+                            <a href="${s.recording_url}" target="_blank" class="small text-break">${s.recording_url}</a>
+                        </div>
+                        <button class="btn btn-sm btn-outline-light ms-2 flex-shrink-0" onclick="navigator.clipboard.writeText('${s.recording_url}'); this.innerText='Скопировано!'; setTimeout(()=>this.innerHTML='<i class=\\'bi bi-copy\\'></i> Скопировать', 2000);">
+                            <i class="bi bi-copy"></i> Скопировать
+                        </button>
+                    </div>
+                </div>`;
+            });
+        } catch (e) {
+            loader.classList.add('d-none');
+            list.innerHTML = '<div class="text-danger small text-center p-3">Ошибка загрузки</div>';
         }
     }
 

@@ -1473,7 +1473,15 @@
                 const instanceTs = eventIdParts.slice(1).join('_');
                 
                 if (rec && rec.url && rec.url !== 'null') {
-                    recBox.innerHTML = `<a href="${rec.url}" class="btn btn-sm btn-primary w-100" target="_blank">▶️ Смотреть видео</a>`;
+                    let finalUrl = rec.url;
+                    if (!finalUrl.startsWith('http')) {
+                        if (finalUrl.length > 15 && !finalUrl.includes('/')) {
+                            finalUrl = 'https://centraluniversity.ktalk.ru/recordings/' + finalUrl;
+                        } else {
+                            finalUrl = 'https://' + finalUrl;
+                        }
+                    }
+                    recBox.innerHTML = `<a href="${finalUrl}" class="btn btn-sm btn-primary w-100" target="_blank">▶️ Смотреть видео</a>`;
                 } else {
                     let html = `<p class="text-warning small mb-2">Официальная запись не найдена.</p>`;
                     if (rec && rec.suggested_url) {

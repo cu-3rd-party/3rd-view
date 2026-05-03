@@ -67,7 +67,7 @@ async def get_events(data: EventsRequest, auth: dict = Depends(verify_user_or_ad
     msk_tz = datetime.timezone(datetime.timedelta(hours=3))
     for record in recs_raw:
         event_id = str(record["yandex_event_id"])
-        date_key = record["recording_date"]
+        date_key = str(record["recording_date"])[:10] if record["recording_date"] else None
         if not date_key and record["yandex_instance_start_ts"] and record["yandex_instance_start_ts"].endswith("Z"):
             try:
                 ts_dt = datetime.datetime.fromisoformat(record["yandex_instance_start_ts"].replace("Z", "+00:00"))
@@ -105,23 +105,34 @@ async def get_events(data: EventsRequest, auth: dict = Depends(verify_user_or_ad
     return absolute_events
 
 
-async def total_sync_generator():
+async def total_sync_generator(start_date: datetime.date, end_date: datetime.date):
     settings = get_settings()
+    
+    if start_date > end_date:
+        yield emit("error", "Дата начала позже даты окончания!")
+        return
+
     try:
-        days_ahead = 30
-        yield emit("progress", f"🚀 Запуск ТОТАЛЬНОЙ синхронизации (на {days_ahead} дней)...")
+        yield emit("progress", f"🚀 Старт тотальной синхронизации: с {start_date} по {end_date}...")
         api = YandexCalendarAPI(cookie_path=str(settings.cookie_file))
-        start_date = datetime.date.today()
-        end_date = start_date + timedelta(days=days_ahead)
+        
         with db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # 1. Достаем преподавателей и ссылки курсов
                 cur.execute("SELECT email, full_name FROM teachers")
                 teachers_dict = {row["email"].lower(): row["full_name"] for row in cur.fetchall()}
                 cur.execute("SELECT link FROM courses WHERE link IS NOT NULL AND link != ''")
                 courses = cur.fetchall()
+                
+                # 2. Выгружаем УЖЕ СУЩЕСТВУЮЩИЕ пары из БД, чтобы не перезаписывать их
+                # и не тратить время на запросы их деталей в Яндекс
+                cur.execute("SELECT event_id, instance_start_ts FROM calendar_events")
+                existing_events = set((row["event_id"], row["instance_start_ts"]) for row in cur.fetchall())
 
             all_unique_students = set()
-            yield emit("progress", "🕵️ Сбор базы студентов из TiMe...")
+            yield emit("progress", "🕵️ Сбор базы студентов из каналов TiMe...")
+            
+            # --- Блок сбора студентов (остается без изменений) ---
             for course in courses:
                 channel_name = course["link"].strip().split("/")[-1]
                 response = requests.get(
@@ -147,40 +158,59 @@ async def total_sync_generator():
                     all_unique_students.update(email for email in valid_emails if email.endswith("@edu.centraluniversity.ru"))
                     page += 1
                     await asyncio.sleep(0.1)
+            # ----------------------------------------------------
 
             students_list = list(all_unique_students)
             yield emit("progress", f"👥 Собрано уникальных студентов: {len(students_list)}")
+            
             unique_events_dict = {}
             student_links = []
+            
             with conn.cursor() as cur:
+                # Проходим по студентам и собираем сетку календарей
                 for index, email in enumerate(students_list, 1):
                     if index % 5 == 0:
-                        yield emit("progress", f"📅 Проверено календарей: {index} / {len(students_list)}")
+                        yield emit("progress", f"📅 Проверяем календари: {index} / {len(students_list)}")
                     cur.execute("INSERT INTO students (email) VALUES (%s) ON CONFLICT (email) DO NOTHING", (email,))
-                    for event in api.get_detailed_events_for_range(email, start_date, end_date):
-                        if not event.get("event_id") or event["name"] in ["Занят", "Событие скрыто"]:
-                            continue
-                        event_key = (event["event_id"], event.get("instance_start_ts"))
-                        unique_events_dict.setdefault(event_key, event)
-                        student_links.append((email, event_key[0], event_key[1]))
-                    await asyncio.sleep(0.2)
+                    
+                    # ЧАНКИРОВАНИЕ (разбиваем период на отрезки по 30 дней)
+                    current_start = start_date
+                    while current_start <= end_date:
+                        current_end = min(current_start + timedelta(days=200), end_date)
+                        
+                        # Запрашиваем Яндекс кусочками
+                        events_chunk = api.get_detailed_events_for_range(email, current_start, current_end)
+                        
+                        for event in events_chunk:
+                            if not event.get("event_id") or event["name"] in ["Занят", "Событие скрыто"]:
+                                continue
+                            event_key = (event["event_id"], event.get("instance_start_ts"))
+                            unique_events_dict.setdefault(event_key, event)
+                            student_links.append((email, event_key[0], event_key[1]))
+                        
+                        current_start = current_end + timedelta(days=1)
+                        await asyncio.sleep(0.1)
 
-                yield emit("progress", f"🎯 Найдено уникальных пар (за 30 дней): {len(unique_events_dict)}. Выгружаем ссылки...")
-                for index, (event_key, event_data) in enumerate(unique_events_dict.items(), 1):
+                # Исключаем из запросов в Яндекс те пары, которые уже есть в нашей БД!
+                events_to_fetch = {k: v for k, v in unique_events_dict.items() if k not in existing_events}
+                
+                yield emit("progress", f"🎯 Найдено уникальных пар (всего): {len(unique_events_dict)}")
+                yield emit("progress", f"⚡ Из них НОВЫХ (надо скачать): {len(events_to_fetch)}")
+
+                # Скачиваем детали ТОЛЬКО для новых пар
+                for index, (event_key, event_data) in enumerate(events_to_fetch.items(), 1):
                     if index % 10 == 0:
-                        yield emit("progress", f"🔗 Скачано деталей: {index} / {len(unique_events_dict)}")
+                        yield emit("progress", f"🔗 Скачано деталей: {index} / {len(events_to_fetch)}")
+                        
                     link_desc, attendees_emails = api.get_event_details_by_id(event_key[0], event_key[1])
                     matched_teachers = [teachers_dict[email] for email in attendees_emails if email in teachers_dict]
+                    
                     cur.execute(
                         """
                         INSERT INTO calendar_events
                         (event_id, instance_start_ts, start_time, end_time, event_name, total_attendees, link_description, attendees_emails, teacher_names)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (event_id, instance_start_ts) DO UPDATE SET
-                        link_description = excluded.link_description,
-                        attendees_emails = excluded.attendees_emails,
-                        teacher_names = excluded.teacher_names,
-                        total_attendees = excluded.total_attendees
+                        ON CONFLICT (event_id, instance_start_ts) DO NOTHING
                         """,
                         (
                             event_key[0],
@@ -195,7 +225,10 @@ async def total_sync_generator():
                         ),
                     )
                     await asyncio.sleep(0.2)
-                yield emit("progress", "🧠 Привязываем студентов к парам...")
+                
+                yield emit("progress", "🧠 Привязываем студентов к парам (и к старым, и к новым)...")
+                
+                # Привязка студентов делается для всех найденных пар (ON CONFLICT игнорирует дубликаты)
                 for link_tuple in student_links:
                     cur.execute(
                         """
@@ -205,11 +238,17 @@ async def total_sync_generator():
                         link_tuple,
                     )
             conn.commit()
-        yield emit("done", {"message": "🎉 ТОТАЛЬНАЯ синхронизация успешно завершена!"})
+            
+        yield emit("done", {"message": f"🎉 Тотальная синхронизация завершена! Добавлено новых пар: {len(events_to_fetch)}."})
+        
     except Exception as exc:
         yield emit("error", f"Ошибка: {exc}")
 
 
 @router.post("/api/admin/total_sync")
-async def run_total_sync_endpoint(admin: str = Depends(verify_admin)) -> StreamingResponse:
-    return StreamingResponse(total_sync_generator(), media_type="text/plain")
+async def run_total_sync_endpoint(
+    start_date: datetime.date = Query(...),
+    end_date: datetime.date = Query(...),
+    admin: str = Depends(verify_admin)
+) -> StreamingResponse:
+    return StreamingResponse(total_sync_generator(start_date, end_date), media_type="text/plain")

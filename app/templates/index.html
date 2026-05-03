@@ -379,18 +379,28 @@
         <!-- Календарь -->
         <div class="col-md-10" style="display: flex; flex-direction: column; height: calc(100vh - 40px); min-height: 800px;">
             
-            <!-- Панель выбора учебной недели -->
-            <div class="d-flex justify-content-between align-items-center mb-3 bg-dark p-2 rounded border border-secondary flex-shrink-0" style="background-color: #222226 !important;">
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-calendar3 text-primary fs-5 ms-2 me-2"></i>
-                    <span class="text-white fw-bold me-3">Учебные недели:</span>
-                    <select id="week-selector" class="form-select form-select-sm bg-dark text-white border-secondary w-auto" style="cursor: pointer;" onchange="goToWeek(this.value)">
-                        <option value="today">Текущая неделя (сегодня)</option>
-                        <option value="custom" disabled hidden>Другая дата</option>
-                        <!-- Опции добавятся через JS -->
-                    </select>
+            <!-- Панель выбора учебной недели и фильтра записей -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 bg-dark p-2 rounded border border-secondary flex-shrink-0" style="background-color: #222226 !important;">
+                <div class="d-flex align-items-center flex-wrap gap-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-calendar3 text-primary fs-5 ms-2 me-2"></i>
+                        <span class="text-white fw-bold me-2">Учебные недели:</span>
+                        <select id="week-selector" class="form-select form-select-sm bg-dark text-white border-secondary w-auto" style="cursor: pointer;" onchange="goToWeek(this.value)">
+                            <option value="today">Текущая неделя (сегодня)</option>
+                            <option value="custom" disabled hidden>Другая дата</option>
+                            <!-- Опции добавятся через JS -->
+                        </select>
+                    </div>
+                    
+                    <!-- ТОТ САМЫЙ ФИЛЬТР -->
+                    <div class="form-check form-switch mb-0 d-flex align-items-center border-start border-secondary ps-4">
+                        <input class="form-check-input" type="checkbox" id="filter-recordings" onchange="toggleRecordingsFilter()" style="cursor: pointer; margin-top: 0;">
+                        <label class="form-check-label text-info small ms-2 fw-bold" for="filter-recordings" style="cursor: pointer;">
+                            Только с записью
+                        </label>
+                    </div>
                 </div>
-                <div class="text-muted small me-2">
+                <div class="text-muted small me-2 mt-2 mt-md-0">
                     Весенний семестр 2026
                 </div>
             </div>
@@ -619,6 +629,9 @@
     let allCourses = []; 
     let currentMode = localStorage.getItem('uni_ui_mode') || 'list'; 
     
+    // ПЕРЕМЕННАЯ ДЛЯ ФИЛЬТРАЦИИ ЗАПИСЕЙ
+    let showOnlyWithRecordings = false;
+    
     // Состояния
     let catalogActiveTeachers = {}; 
     let cardsSelectedState = JSON.parse(localStorage.getItem('uni_cards_filters')) || {};
@@ -665,6 +678,14 @@
         initWeekSelector();
         initCalendar();
     });
+
+    // Функция переключения фильтра записей
+    function toggleRecordingsFilter() {
+        showOnlyWithRecordings = document.getElementById('filter-recordings').checked;
+        if (calendar) {
+            calendar.refetchEvents();
+        }
+    }
 
     // Заполнение выпадающего списка недель
     function initWeekSelector() {
@@ -1370,8 +1391,19 @@
             },
 
             events: function(info, success, failure) {
+                // Функция-фильтр: пропускает только те события, у которых есть ссылка в объекте recordings
+                const filterRecords = (evs) => {
+                    if (!showOnlyWithRecordings) return evs;
+                    return evs.filter(ev => {
+                        if (!ev.recordings) return false;
+                        // Проверяем, есть ли хоть одна дата, у которой есть url != 'null'
+                        return Object.values(ev.recordings).some(rec => rec && rec.url && rec.url !== 'null');
+                    });
+                };
+
                 if (currentMode === 'personal') {
-                    success(typeof personalEvents !== 'undefined' ? personalEvents : []);
+                    let evs = typeof personalEvents !== 'undefined' ? personalEvents : [];
+                    success(filterRecords(evs));
                     return;
                 }
 
@@ -1399,7 +1431,16 @@
                 fetchFunction('/api/events', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ start: info.startStr, end: info.endStr, filters })
-                }).then(r => r.json()).then(data => success(data)).catch(err => failure(err));
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        success(filterRecords(data));
+                    } else {
+                        success([]);
+                    }
+                })
+                .catch(err => failure(err));
             },
             
             eventClick: function(info) {

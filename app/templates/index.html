@@ -1397,7 +1397,10 @@
                 const filterRecords = (evs) => {
                     if (recordingsFilterMode === 'all') return evs;
                     return evs.filter(ev => {
-                        const hasRecording = ev.recordings && Object.values(ev.recordings).some(rec => rec && rec.url && rec.url !== 'null');
+                        const hasRecording = ev.recordings && Object.values(ev.recordings).some(rec => rec && (
+                            (rec.url && rec.url !== 'null') || 
+                            (rec.suggested_url && rec.suggested_url !== 'null')
+                        ));
                         if (recordingsFilterMode === 'with_rec') return hasRecording;
                         if (recordingsFilterMode === 'no_rec') return !hasRecording;
                         return true;
@@ -1463,18 +1466,29 @@
                 const rec = (p.recordings || {})[dateStr];
                 
                 const templateEventId = p.template_event_id || '';
+                const eventIdParts = info.event.id.split('_');
+                const instanceTs = eventIdParts.slice(1).join('_');
                 
                 if (rec && rec.url && rec.url !== 'null') {
                     recBox.innerHTML = `<a href="${rec.url}" class="btn btn-sm btn-primary w-100" target="_blank">▶️ Смотреть видео</a>`;
                 } else {
-                    recBox.innerHTML = `
-                        <p class="text-warning small mb-2">Запись не найдена.</p>
-                        ${templateEventId ? `
-                        <div class="input-group input-group-sm d-none">
-                            <input type="text" class="form-control bg-dark text-white border-secondary" id="manualRecordingUrl" placeholder="Вставьте ссылку...">
-                            <button class="btn btn-outline-success" onclick="saveManualRecording('${templateEventId}', '${dateStr}')">Сохранить</button>
-                        </div>` : ''}
+                    let html = `<p class="text-warning small mb-2">Официальная запись не найдена.</p>`;
+                    if (rec && rec.suggested_url) {
+                        html += `
+                        <div class="mb-2 p-2 border border-info rounded" style="background-color: rgba(13, 202, 240, 0.1);">
+                            <span class="text-info small fw-bold">Предложенная запись:</span><br>
+                            <a href="${rec.suggested_url}" target="_blank" class="small" style="word-break: break-all;">${rec.suggested_url}</a>
+                            <div class="text-muted mt-1" style="font-size: 0.65rem;">От: ${rec.suggested_by_email}</div>
+                        </div>`;
+                    }
+                    html += `
+                        <button class="btn btn-sm btn-outline-info w-100 mb-2" onclick="document.getElementById('suggestBox').classList.toggle('d-none')">🙋 Предложить запись</button>
+                        <div id="suggestBox" class="input-group input-group-sm d-none">
+                            <input type="text" class="form-control bg-dark text-white border-secondary" id="suggestUrlInput" placeholder="https://centraluniversity.ktalk.ru/recordings/...">
+                            <button class="btn btn-info" onclick="submitSuggestRecording('${templateEventId}', '${instanceTs}')">Отправить</button>
+                        </div>
                     `;
+                    recBox.innerHTML = html;
                 }
                 
                 const emails = p.attendees_emails || '';
@@ -1484,6 +1498,39 @@
             }
         });
         calendar.render();
+    }
+
+    async function submitSuggestRecording(eventId, instanceTs) {
+        const urlInput = document.getElementById('suggestUrlInput');
+        const url = urlInput.value.trim();
+        if (!url) return;
+
+        if (!url.startsWith('https://centraluniversity.ktalk.ru/recordings/')) {
+            alert('Пожалуйста, укажите корректную ссылку на запись в KTalk (начинается с https://centraluniversity.ktalk.ru/recordings/)');
+            return;
+        }
+
+        try {
+            const res = await authFetch('/api/recordings/suggest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    yandex_event_id: eventId,
+                    yandex_instance_start_ts: instanceTs,
+                    suggested_url: url
+                })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                alert('Спасибо! Запись предложена.');
+                eventModal.hide();
+                if (calendar) calendar.refetchEvents();
+            } else {
+                alert('Ошибка: ' + (data.message || 'Не удалось предложить запись.'));
+            }
+        } catch (e) {
+            alert('Ошибка соединения. Попробуйте еще раз.');
+        }
     }
 
 </script>

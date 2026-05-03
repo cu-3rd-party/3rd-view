@@ -282,6 +282,9 @@
                 <button class="btn btn-sm btn-outline-info" onclick="syncRecordings()">
                     <i class="bi bi-arrow-repeat"></i> Подтянуть записи (KTalk)
                 </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="openSuggestionsModal()">
+                    <i class="bi bi-inbox"></i> Предложенные записи
+                </button>
                 
                 <!-- КНОПКА ТОТАЛЬНОЙ СИНХРОНИЗАЦИИ -->
                 <button class="btn btn-sm btn-outline-danger mt-3" onclick="new bootstrap.Modal(document.getElementById('totalSyncModal')).show()">
@@ -461,6 +464,28 @@
       <div class="modal-footer border-top-0">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
         <button type="button" class="btn btn-success" onclick="submitNewTeacher()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Модалка предложенных записей -->
+<div class="modal fade" id="suggestionsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title">Предложенные записи</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-1">
+        <div id="suggestions-loader" class="text-center d-none">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        </div>
+        <div id="suggestions-list" class="list-group" style="max-height: 400px; overflow-y: auto;">
+            <!-- Сюда вставляются записи -->
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
       </div>
     </div>
   </div>
@@ -1277,6 +1302,75 @@
         document.getElementById('sync-end-date').value = nextMonth.toISOString().split('T')[0];
     });
 
+    async function openSuggestionsModal() {
+        const modal = new bootstrap.Modal(document.getElementById('suggestionsModal'));
+        modal.show();
+        loadSuggestions();
+    }
+
+    async function loadSuggestions() {
+        const list = document.getElementById('suggestions-list');
+        const loader = document.getElementById('suggestions-loader');
+        list.innerHTML = '';
+        loader.classList.remove('d-none');
+        
+        try {
+            const res = await fetch('/api/admin/recordings/suggestions');
+            const data = await res.json();
+            loader.classList.add('d-none');
+            
+            if (data.length === 0) {
+                list.innerHTML = '<div class="text-muted small text-center p-3">Нет предложенных записей</div>';
+                return;
+            }
+            
+            data.forEach(s => {
+                let eventDtStr = 'Неизвестная дата';
+                let ts = s.start_time || s.yandex_instance_start_ts;
+                if (ts) {
+                    if (ts.endsWith('Z')) ts = ts.replace('Z', '+00:00');
+                    const eventDate = new Date(ts);
+                    if (!isNaN(eventDate)) eventDtStr = eventDate.toLocaleString('ru-RU');
+                }
+                
+                const d = new Date(s.created_at);
+                const dtStr = isNaN(d) ? '' : d.toLocaleString('ru-RU');
+                
+                list.innerHTML += `
+                <div class="list-group-item bg-dark border-secondary text-white mb-2 rounded" id="sug-${s.id}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>${s.event_name || 'Неизвестная пара'}</strong> <span class="text-muted small">(${eventDtStr})</span><br>
+                            <span class="small text-info">От: ${s.suggested_by_email} <span class="text-secondary ms-1">(предложено ${dtStr})</span></span><br>
+                            <a href="${s.suggested_url}" target="_blank" class="small text-break">${s.suggested_url}</a>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0" onclick="deleteSuggestion(${s.id})" title="Удалить">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+                </div>
+                `;
+            });
+        } catch (e) {
+            loader.classList.add('d-none');
+            list.innerHTML = '<div class="text-danger small text-center p-3">Ошибка загрузки</div>';
+        }
+    }
+
+    async function deleteSuggestion(id) {
+        if (!confirm('Точно удалить это предложение?')) return;
+        try {
+            const res = await fetch(`/api/admin/recordings/suggestions/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                document.getElementById(`sug-${id}`).remove();
+                if(calendar) calendar.refetchEvents();
+            } else {
+                alert('Ошибка при удалении');
+            }
+        } catch(e) {
+            alert('Ошибка сети');
+        }
+    }
 
 </script>
 

@@ -19,6 +19,12 @@ class ManualRecordingModel(BaseModel):
     recording_url: str
 
 
+class SuggestRecordingModel(BaseModel):
+    yandex_event_id: str
+    yandex_instance_start_ts: str
+    suggested_url: str
+
+
 class CourseFilter(BaseModel):
     query: str
     teachers: List[str]

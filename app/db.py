@@ -64,6 +64,14 @@ CREATE TABLE IF NOT EXISTS email_verifications (
     code TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS suggested_recordings (
+    id SERIAL PRIMARY KEY,
+    yandex_event_id TEXT,
+    yandex_instance_start_ts TEXT,
+    suggested_url TEXT,
+    suggested_by_email TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

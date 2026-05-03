@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from psycopg2.extras import RealDictCursor
 
-from app.auth import verify_admin
+from app.auth import verify_admin, get_current_user
 from app.core.config import get_settings
 from app.db import db_connection
 from app.integrations.ktalk_api import KTalkAPI
-from app.schemas import ManualRecordingModel
+from app.schemas import ManualRecordingModel, SuggestRecordingModel
 from app.services.common import emit
 
 
@@ -128,5 +128,53 @@ async def set_manual_recording(data: ManualRecordingModel, admin: str = Depends(
                 """,
                 (data.yandex_event_id, fake_ts, data.recording_url.strip(), data.recording_date),
             )
+        conn.commit()
+    return {"status": "ok"}
+
+
+@router.post("/api/recordings/suggest")
+async def suggest_recording(data: SuggestRecordingModel, user_email: str = Depends(get_current_user)) -> dict[str, str]:
+    if not data.suggested_url.startswith("https://centraluniversity.ktalk.ru/recordings/"):
+        return {"status": "error", "message": "Неверный формат ссылки. Нужна ссылка с ktalk."}
+
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO suggested_recordings (yandex_event_id, yandex_instance_start_ts, suggested_url, suggested_by_email)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (data.yandex_event_id, data.yandex_instance_start_ts, data.suggested_url.strip(), user_email),
+            )
+        conn.commit()
+    return {"status": "ok"}
+
+
+@router.get("/api/admin/recordings/suggestions")
+async def get_suggested_recordings(admin: str = Depends(verify_admin)) -> list[dict]:
+    query = """
+        SELECT s.id, s.yandex_event_id, s.yandex_instance_start_ts, s.suggested_url, s.suggested_by_email, s.created_at, c.event_name, c.start_time
+        FROM suggested_recordings s
+        LEFT JOIN calendar_events c ON s.yandex_event_id = c.event_id AND s.yandex_instance_start_ts = c.instance_start_ts
+        ORDER BY s.created_at DESC
+    """
+    with db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(query)
+            results = cur.fetchall()
+            
+    # Convert datetime to string
+    for row in results:
+        if row.get("created_at"):
+            row["created_at"] = row["created_at"].isoformat()
+            
+    return results
+
+
+@router.delete("/api/admin/recordings/suggestions/{suggestion_id}")
+async def delete_suggested_recording(suggestion_id: int, admin: str = Depends(verify_admin)) -> dict:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM suggested_recordings WHERE id = %s", (suggestion_id,))
         conn.commit()
     return {"status": "ok"}

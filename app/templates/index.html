@@ -393,11 +393,13 @@
                     </div>
                     
                     <!-- ТОТ САМЫЙ ФИЛЬТР -->
-                    <div class="form-check form-switch mb-0 d-flex align-items-center border-start border-secondary ps-4">
-                        <input class="form-check-input" type="checkbox" id="filter-recordings" onchange="toggleRecordingsFilter()" style="cursor: pointer; margin-top: 0;">
-                        <label class="form-check-label text-info small ms-2 fw-bold" for="filter-recordings" style="cursor: pointer;">
-                            Только с записью
-                        </label>
+                    <div class="d-flex align-items-center border-start border-secondary ps-4">
+                        <i class="bi bi-funnel text-info fs-5 me-2"></i>
+                        <select id="filter-recordings" class="form-select form-select-sm bg-dark text-info border-secondary w-auto fw-bold" style="cursor: pointer;" onchange="toggleRecordingsFilter()">
+                            <option value="all">Не важно есть запись или нет</option>
+                            <option value="with_rec">Только с записью</option>
+                            <option value="no_rec">Только без записей</option>
+                        </select>
                     </div>
                 </div>
                 <div class="text-muted small me-2 mt-2 mt-md-0">
@@ -630,7 +632,7 @@
     let currentMode = localStorage.getItem('uni_ui_mode') || 'list'; 
     
     // ПЕРЕМЕННАЯ ДЛЯ ФИЛЬТРАЦИИ ЗАПИСЕЙ
-    let showOnlyWithRecordings = false;
+    let recordingsFilterMode = 'all';
     
     // Состояния
     let catalogActiveTeachers = {}; 
@@ -681,7 +683,7 @@
 
     // Функция переключения фильтра записей
     function toggleRecordingsFilter() {
-        showOnlyWithRecordings = document.getElementById('filter-recordings').checked;
+        recordingsFilterMode = document.getElementById('filter-recordings').value;
         if (calendar) {
             calendar.refetchEvents();
         }
@@ -1391,13 +1393,14 @@
             },
 
             events: function(info, success, failure) {
-                // Функция-фильтр: пропускает только те события, у которых есть ссылка в объекте recordings
+                // Функция-фильтр: пропускает события в зависимости от наличия записи
                 const filterRecords = (evs) => {
-                    if (!showOnlyWithRecordings) return evs;
+                    if (recordingsFilterMode === 'all') return evs;
                     return evs.filter(ev => {
-                        if (!ev.recordings) return false;
-                        // Проверяем, есть ли хоть одна дата, у которой есть url != 'null'
-                        return Object.values(ev.recordings).some(rec => rec && rec.url && rec.url !== 'null');
+                        const hasRecording = ev.recordings && Object.values(ev.recordings).some(rec => rec && rec.url && rec.url !== 'null');
+                        if (recordingsFilterMode === 'with_rec') return hasRecording;
+                        if (recordingsFilterMode === 'no_rec') return !hasRecording;
+                        return true;
                     });
                 };
 

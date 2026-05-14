@@ -1,6 +1,6 @@
 # cu 3rd view
 
-Backend for collecting and serving university schedule data, matching recordings, and running a KTalk attendance worker.
+Backend and frontend for collecting and serving university schedule data, matching recordings, and running a KTalk attendance worker.
 
 ## Structure
 

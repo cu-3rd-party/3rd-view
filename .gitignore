@@ -84,3 +84,7 @@ $RECYCLE.BIN/
 offtopic_students.txt
 pilot_students.txt
 parse_offtopic.log
+
+# Живые сессионные куки Яндекса, не для репозитория (образец: cookie.example.txt)
+cookie.txt
+ktalk_auth.txt

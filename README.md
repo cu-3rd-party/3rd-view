@@ -26,9 +26,11 @@ Copy `example.env` to `.env` and fill in the real values.
 
 Required runtime files:
 
-1. `.env`
-2. `cookie.txt`
+1. `.env` (copy from `example.env`)
+2. `cookie.txt` (copy from `cookie.example.txt`, then paste the Yandex Calendar cookie header)
 3. `ktalk_auth.txt`
+
+All three hold live credentials and are gitignored -- never commit them.
 
 The app reads configuration only from environment variables and file paths declared in `.env`.
 

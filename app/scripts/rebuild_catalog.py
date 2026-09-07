@@ -50,7 +50,10 @@ STAFF_STOP_WORDS = (
     # прописался бы преподавателем всему расписанию
     "admin", "info@", "timetable@", "noreply", "no-reply", "support@", "testoviy",
 )
-STUDENT_DOMAIN = "@edu.centraluniversity."
+# Преподавателя определяем по белому списку доменов, а не по принципу "всё, что не
+# студент". Мы обходим личные календари целиком, и в участники попадает кто угодно:
+# одна корпоративная встреча на 1296 человек занесла 1289 адресов @techvill.ru.
+STAFF_DOMAINS = ("@centraluniversity.ru", "@cu.ru")
 
 
 def subject_of(event_name: str) -> tuple[str, bool]:
@@ -80,9 +83,7 @@ def semester_of(start_time: str) -> str:
 
 def is_staff_email(email: str) -> bool:
     address = (email or "").lower().strip()
-    if not address or "@" not in address:
-        return False
-    if STUDENT_DOMAIN in address:
+    if not address.endswith(STAFF_DOMAINS):
         return False
     return not any(word in address for word in STAFF_STOP_WORDS)
 
@@ -135,13 +136,19 @@ def collect_subjects(cur, min_attendees: int) -> dict[str, set[str]]:
     }
 
 
-def collect_staff(cur) -> set[str]:
+def collect_staff(cur, min_attendees: int) -> set[str]:
+    """Staff seen in the attendee list of an actual class, not of any event at all."""
     cur.execute(
-        "SELECT attendees_emails FROM calendar_events "
+        "SELECT event_name, attendees_emails, total_attendees FROM calendar_events "
         "WHERE attendees_emails IS NOT NULL AND attendees_emails != ''"
     )
     staff: set[str] = set()
-    for (raw,) in cur.fetchall():
+    for event_name, raw, attendees in cur.fetchall():
+        if not event_name or event_name in SKIP_EVENT_NAMES:
+            continue
+        _, typed = subject_of(event_name)
+        if not typed and (attendees or 0) < min_attendees:
+            continue
         for item in raw.split(","):
             email = item.strip().lower()
             if is_staff_email(email):
@@ -195,7 +202,7 @@ def main() -> None:
     with db_connection() as conn:
         with conn.cursor() as cur:
             subjects = collect_subjects(cur, args.min_attendees)
-            staff = collect_staff(cur)
+            staff = collect_staff(cur, args.min_attendees)
             cur.execute("SELECT email, full_name FROM teachers")
             known_teachers = {row[0].strip().lower(): (row[1] or "").strip() for row in cur.fetchall()}
             cur.execute("SELECT count(*) FROM courses")

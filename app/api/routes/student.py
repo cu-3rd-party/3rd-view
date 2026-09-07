@@ -30,9 +30,7 @@ async def import_student_schedule(email: str, user: str = Depends(get_current_us
 
     event_ids = list({str(event["event_id"]) for event in raw_events if event.get("event_id")})
     db_events_dict = {}
-    recs_by_event = {}
     teachers_dict = {}
-    msk_tz = datetime.timezone(datetime.timedelta(hours=3))
 
     with db_connection() as conn:
         try:
@@ -52,46 +50,6 @@ async def import_student_schedule(email: str, user: str = Depends(get_current_us
                         (str(row["event_id"]), str(row["instance_start_ts"])): row
                         for row in cur.fetchall()
                     }
-                    cur.execute(
-                        f"""
-                        SELECT yandex_event_id, yandex_instance_start_ts, recording_url, recording_date
-                        FROM event_recordings WHERE yandex_event_id IN ({placeholders})
-                        """,
-                        tuple(event_ids),
-                    )
-                    for record in cur.fetchall():
-                        date_key = record["recording_date"]
-                        if not date_key and record["yandex_instance_start_ts"]:
-                            try:
-                                ts_dt = datetime.datetime.fromisoformat(record["yandex_instance_start_ts"].replace("Z", "+00:00"))
-                                date_key = ts_dt.astimezone(msk_tz).strftime("%Y-%m-%d")
-                            except Exception:
-                                pass
-                        if date_key and record["recording_url"]:
-                            recs_by_event.setdefault(str(record["yandex_event_id"]), {})[date_key] = {"url": record["recording_url"]}
-                    
-                    try:
-                        cur.execute(
-                            f"""
-                            SELECT yandex_event_id, yandex_instance_start_ts, suggested_url, suggested_by_email
-                            FROM suggested_recordings WHERE yandex_event_id IN ({placeholders})
-                            """,
-                            tuple(event_ids),
-                        )
-                        for sug in cur.fetchall():
-                            date_key = None
-                            if sug["yandex_instance_start_ts"]:
-                                try:
-                                    ts_dt = datetime.datetime.fromisoformat(sug["yandex_instance_start_ts"].replace("Z", "+00:00"))
-                                    date_key = ts_dt.astimezone(msk_tz).strftime("%Y-%m-%d")
-                                except Exception:
-                                    pass
-                            if date_key and sug["suggested_url"]:
-                                entry = recs_by_event.setdefault(str(sug["yandex_event_id"]), {}).setdefault(date_key, {})
-                                entry["suggested_url"] = sug["suggested_url"]
-                                entry["suggested_by_email"] = sug["suggested_by_email"]
-                    except Exception:
-                        pass
         except Exception:
             pass
 
@@ -139,7 +97,6 @@ async def import_student_schedule(email: str, user: str = Depends(get_current_us
                         conn.commit()
                     except Exception:
                         conn.rollback()
-                date_str = event["start"].astimezone(msk_tz).strftime("%Y-%m-%d")
                 formatted_events.append(
                     {
                         "id": f"{event_id}_{instance}",
@@ -153,7 +110,6 @@ async def import_student_schedule(email: str, user: str = Depends(get_current_us
                         "link_description": db_data.get("link_description", ""),
                         "teacher_names": db_data.get("teacher_names", "Не определен"),
                         "attendees_emails": db_data.get("attendees_emails", ""),
-                        "recordings": {date_str: recs_by_event.get(event_id, {}).get(date_str)} if recs_by_event.get(event_id, {}).get(date_str) else {},
                     }
                 )
     return {"status": "ok", "events": formatted_events}

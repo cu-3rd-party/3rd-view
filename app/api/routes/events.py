@@ -50,61 +50,8 @@ async def get_events(data: EventsRequest, auth: dict = Depends(verify_user_or_ad
         if not events_raw:
             return []
 
-        event_ids = list({str(row["event_id"]) for row in events_raw})
-        placeholders = ",".join(["%s"] * len(event_ids))
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                f"""
-                SELECT yandex_event_id, yandex_instance_start_ts, recording_url, recording_date
-                FROM event_recordings
-                WHERE yandex_event_id IN ({placeholders})
-                """,
-                tuple(event_ids),
-            )
-            recs_raw = cur.fetchall()
-
-            try:
-                cur.execute(
-                    f"""
-                    SELECT yandex_event_id, yandex_instance_start_ts, suggested_url, suggested_by_email
-                    FROM suggested_recordings
-                    WHERE yandex_event_id IN ({placeholders})
-                    """,
-                    tuple(event_ids),
-                )
-                sugs_raw = cur.fetchall()
-            except Exception:
-                conn.rollback() # If table doesn't exist yet
-                sugs_raw = []
-
-    recs_by_event: dict[str, dict[str, dict[str, str]]] = {}
-    msk_tz = datetime.timezone(datetime.timedelta(hours=3))
-    
-    for record in recs_raw:
-        event_id = str(record["yandex_event_id"])
-        date_key = str(record["recording_date"])[:10] if record["recording_date"] else None
-        if not date_key and record["yandex_instance_start_ts"] and record["yandex_instance_start_ts"].endswith("Z"):
-            try:
-                ts_dt = datetime.datetime.fromisoformat(record["yandex_instance_start_ts"].replace("Z", "+00:00"))
-                date_key = ts_dt.astimezone(msk_tz).strftime("%Y-%m-%d")
-            except Exception:
-                pass
-        if date_key and record["recording_url"]:
-            recs_by_event.setdefault(event_id, {})[date_key] = {"url": record["recording_url"]}
-
-    for sug in sugs_raw:
-        event_id = str(sug["yandex_event_id"])
-        date_key = None
-        if sug["yandex_instance_start_ts"] and sug["yandex_instance_start_ts"].endswith("Z"):
-            try:
-                ts_dt = datetime.datetime.fromisoformat(sug["yandex_instance_start_ts"].replace("Z", "+00:00"))
-                date_key = ts_dt.astimezone(msk_tz).strftime("%Y-%m-%d")
-            except Exception:
-                pass
-        if date_key and sug["suggested_url"]:
-            entry = recs_by_event.setdefault(event_id, {}).setdefault(date_key, {})
-            entry["suggested_url"] = sug["suggested_url"]
-            entry["suggested_by_email"] = sug["suggested_by_email"]
+    # Ссылки на записи наружу не отдаются: показывать их юридически нельзя.
+    # Сбор записей в event_recordings при этом продолжает работать.
 
     absolute_events = []
     for row in events_raw:
@@ -113,7 +60,6 @@ async def get_events(data: EventsRequest, auth: dict = Depends(verify_user_or_ad
             end_time = datetime.datetime.fromisoformat(row["end_time"].replace("Z", "+00:00"))
         except Exception:
             continue
-        date_str = start_time.astimezone(msk_tz).strftime("%Y-%m-%d")
         event_id = str(row["event_id"])
         absolute_events.append(
             {
@@ -128,7 +74,6 @@ async def get_events(data: EventsRequest, auth: dict = Depends(verify_user_or_ad
                 "link_description": row["link_description"],
                 "teacher_names": row["teacher_names"],
                 "attendees_emails": row["attendees_emails"],
-                "recordings": {date_str: recs_by_event.get(event_id, {}).get(date_str)} if recs_by_event.get(event_id, {}).get(date_str) else {},
             }
         )
     return absolute_events

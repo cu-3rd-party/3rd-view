@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from psycopg2.extras import RealDictCursor
 
-from app.auth import verify_admin, get_current_user, verify_user_or_admin
+from app.auth import verify_admin, get_current_user
 from app.core.config import get_settings
 from app.db import db_connection
 from app.integrations.ktalk_api import KTalkAPI
@@ -179,7 +179,7 @@ async def suggest_recording(data: SuggestRecordingModel, user_email: str = Depen
 @router.get("/api/admin/recordings/suggestions")
 async def get_suggested_recordings(admin: str = Depends(verify_admin)) -> list[dict]:
     query = """
-        SELECT s.id, s.yandex_event_id, s.yandex_instance_start_ts, s.suggested_url, s.suggested_by_email, s.created_at, c.event_name, c.start_time
+        SELECT s.id, s.yandex_event_id, s.yandex_instance_start_ts, s.suggested_by_email, s.created_at, c.event_name, c.start_time
         FROM suggested_recordings s
         LEFT JOIN calendar_events c ON s.yandex_event_id = c.event_id AND s.yandex_instance_start_ts = c.instance_start_ts
         ORDER BY s.created_at DESC
@@ -204,28 +204,3 @@ async def delete_suggested_recording(suggestion_id: int, admin: str = Depends(ve
             cur.execute("DELETE FROM suggested_recordings WHERE id = %s", (suggestion_id,))
         conn.commit()
     return {"status": "ok"}
-
-
-@router.get("/api/recordings/unmatched")
-async def get_unmatched_recordings(user: dict = Depends(verify_user_or_admin)) -> list[dict]:
-    query = """
-        SELECT ktalk_id, title, start_time, recording_url, room_name, created_at
-        FROM unmatched_recordings
-        WHERE recording_url NOT IN (SELECT suggested_url FROM suggested_recordings)
-        AND recording_url NOT IN (SELECT recording_url FROM event_recordings WHERE is_manual=TRUE)
-        ORDER BY start_time DESC
-    """
-    with db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            try:
-                cur.execute(query)
-                results = cur.fetchall()
-            except Exception:
-                conn.rollback()
-                results = []
-            
-    for row in results:
-        if row.get("created_at"):
-            row["created_at"] = row["created_at"].isoformat()
-            
-    return results

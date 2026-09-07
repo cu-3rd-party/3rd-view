@@ -496,9 +496,6 @@
                         <button class="btn btn-sm btn-outline-primary" onclick="openSuggestionsModal()">
                             <i class="bi bi-inbox"></i> Предложенные записи
                         </button>
-                        <button class="btn btn-sm btn-outline-warning" onclick="openUnmatchedModal()">
-                            <i class="bi bi-database-exclamation"></i> Непривязанные записи
-                        </button>
 
                         <!-- КНОПКА ТОТАЛЬНОЙ СИНХРОНИЗАЦИИ -->
                         <button class="btn btn-sm btn-outline-danger mt-3"
@@ -1266,24 +1263,8 @@
                     let link = p.link_description || 'Нет ссылки';
                     document.getElementById('modalLink').innerHTML = link.startsWith('http') ? `<a href="${link}" target="_blank">${link}</a>` : link;
 
-                    const recBox = document.getElementById('modalRecording');
-                    const rec = (p.recordings || {})[dateStr];
-
-                    // Проверка на наличие модалки для ручного сохранения (из второго файла)
-                    const templateEventId = p.template_event_id || '';
-
-                    if (rec && rec.url && rec.url !== 'null') {
-                        recBox.innerHTML = `<a href="${rec.url}" class="btn btn-sm btn-primary w-100" target="_blank">▶️ Смотреть видео</a>`;
-                    } else {
-                        recBox.innerHTML = `
-                        <p class="text-warning small mb-2">Запись не найдена.</p>
-                        ${templateEventId ? `
-                        <div class="input-group input-group-sm d-none">
-                            <input type="text" class="form-control bg-dark text-white border-secondary" id="manualRecordingUrl" placeholder="Вставьте ссылку...">
-                            <button class="btn btn-outline-success" onclick="saveManualRecording('${templateEventId}', '${dateStr}')">Сохранить</button>
-                        </div>` : ''}
-                    `;
-                    }
+                    document.getElementById('modalRecording').innerHTML =
+                        '<p class="text-muted small mb-0">Ссылки на записи недоступны.</p>';
 
                     const emails = p.attendees_emails || '';
                     document.getElementById('modalAttendeesList').innerHTML = emails ? emails.split(',').map(e => `<div>${e.trim()}</div>`).join('') : 'Нет данных';
@@ -1575,7 +1556,7 @@
                         <div>
                             <strong>${s.event_name || 'Неизвестная пара'}</strong> <span class="text-muted small">(${eventDtStr})</span><br>
                             <span class="small text-info">От: ${s.suggested_by_email} <span class="text-secondary ms-1">(предложено ${dtStr})</span></span><br>
-                            <a href="${s.suggested_url}" target="_blank" class="small text-break">${s.suggested_url}</a>
+
                         </div>
                         <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0" onclick="deleteSuggestion(${s.id})" title="Удалить">
                             <i class="bi bi-trash3"></i>
@@ -1602,83 +1583,6 @@
                 }
             } catch (e) {
                 alert('Ошибка сети');
-            }
-        }
-
-        async function openUnmatchedModal() {
-            if (!document.getElementById('unmatchedModal')) {
-                const modalHtml = `
-            <div class="modal fade" id="unmatchedModal" tabindex="-1">
-              <div class="modal-dialog modal-dialog-centered modal-lg">
-                <div class="modal-content">
-                  <div class="modal-header border-bottom-0">
-                    <h5 class="modal-title text-warning"><i class="bi bi-database-exclamation"></i> Непривязанные записи</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                  </div>
-                  <div class="modal-body py-1">
-                    <p class="small text-muted mb-3">
-                        Здесь показаны записи из KTalk, для которых система не смогла автоматически найти подходящую пару в расписании. 
-                    </p>
-                    <div id="unmatched-loader" class="text-center d-none">
-                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                    </div>
-                    <div id="unmatched-list" class="list-group" style="max-height: 50vh; overflow-y: auto;">
-                    </div>
-                  </div>
-                  <div class="modal-footer border-top-0">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
-                  </div>
-                </div>
-              </div>
-            </div>`;
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-            }
-
-            const modalEl = document.getElementById('unmatchedModal');
-            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            modal.show();
-
-            const list = document.getElementById('unmatched-list');
-            const loader = document.getElementById('unmatched-loader');
-            list.innerHTML = '';
-            loader.classList.remove('d-none');
-
-            try {
-                const res = await fetch('/api/recordings/unmatched');
-                const data = await res.json();
-                loader.classList.add('d-none');
-
-                if (data.length === 0) {
-                    list.innerHTML = '<div class="text-muted small text-center p-3">Нет непривязанных записей.</div>';
-                    return;
-                }
-
-                data.forEach(s => {
-                    let eventDtStr = 'Неизвестная дата';
-                    let ts = s.start_time;
-                    if (ts) {
-                        if (ts.endsWith('Z')) ts = ts.replace('Z', '+00:00');
-                        const eventDate = new Date(ts);
-                        if (!isNaN(eventDate)) eventDtStr = eventDate.toLocaleString('ru-RU');
-                    }
-
-                    list.innerHTML += `
-                <div class="list-group-item bg-dark border-secondary text-white mb-2 rounded">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div style="flex:1; min-width:0;">
-                            <strong>${s.title || 'Без названия'}</strong> <span class="text-muted small">(${eventDtStr})</span><br>
-                            <span class="small text-info">Аудитория: ${s.room_name || 'Неизвестно'}</span><br>
-                            <a href="${s.recording_url}" target="_blank" class="small text-break">${s.recording_url}</a>
-                        </div>
-                        <button class="btn btn-sm btn-outline-light ms-2 flex-shrink-0" onclick="navigator.clipboard.writeText('${s.recording_url}'); this.innerText='Скопировано!'; setTimeout(()=>this.innerHTML='<i class=\\'bi bi-copy\\'></i> Скопировать', 2000);">
-                            <i class="bi bi-copy"></i> Скопировать
-                        </button>
-                    </div>
-                </div>`;
-                });
-            } catch (e) {
-                loader.classList.add('d-none');
-                list.innerHTML = '<div class="text-danger small text-center p-3">Ошибка загрузки</div>';
             }
         }
 

@@ -632,23 +632,9 @@
                             </select>
                         </div>
 
-                        <!-- ТОТ САМЫЙ ФИЛЬТР -->
-                        <div class="d-flex align-items-center border-start border-secondary ps-4">
-                            <i class="bi bi-funnel text-info fs-5 me-2"></i>
-                            <select id="filter-recordings"
-                                class="form-select form-select-sm bg-dark text-info border-secondary w-auto fw-bold"
-                                style="cursor: pointer;" onchange="toggleRecordingsFilter()">
-                                <option value="all">Не важно есть запись или нет</option>
-                                <option value="with_rec">Только с записью</option>
-                                <option value="no_rec">Только без записей</option>
-                            </select>
-                            <button class="btn btn-sm btn-outline-warning ms-3 fw-bold" onclick="openUnmatchedModal()">
-                                <i class="bi bi-database-exclamation"></i> Непривязанные записи
-                            </button>
-                        </div>
                     </div>
                     <div class="text-muted small me-2 mt-2 mt-md-0">
-                        Весенний семестр 2026
+                        Осенний семестр 2026
                     </div>
                 </div>
 
@@ -887,7 +873,6 @@
         let currentMode = localStorage.getItem('uni_ui_mode') || 'list';
 
         // ПЕРЕМЕННАЯ ДЛЯ ФИЛЬТРАЦИИ ЗАПИСЕЙ
-        let recordingsFilterMode = 'all';
 
         // Состояния
         let catalogActiveTeachers = {};
@@ -937,14 +922,6 @@
         });
 
         // Функция переключения фильтра записей
-        function toggleRecordingsFilter() {
-            recordingsFilterMode = document.getElementById('filter-recordings').value;
-            if (calendar) {
-                calendar.refetchEvents();
-            }
-        }
-
-        // Заполнение выпадающего списка недель
         function initWeekSelector() {
             const select = document.getElementById('week-selector');
             let optionsHtml = '<option value="today">Текущая неделя (сегодня)</option>';
@@ -1649,22 +1626,9 @@
 
                 events: function (info, success, failure) {
                     // Функция-фильтр: пропускает события в зависимости от наличия записи
-                    const filterRecords = (evs) => {
-                        if (recordingsFilterMode === 'all') return evs;
-                        return evs.filter(ev => {
-                            const hasRecording = ev.recordings && Object.values(ev.recordings).some(rec => rec && (
-                                (rec.url && rec.url !== 'null') ||
-                                (rec.suggested_url && rec.suggested_url !== 'null')
-                            ));
-                            if (recordingsFilterMode === 'with_rec') return hasRecording;
-                            if (recordingsFilterMode === 'no_rec') return !hasRecording;
-                            return true;
-                        });
-                    };
-
                     if (currentMode === 'personal') {
                         let evs = typeof personalEvents !== 'undefined' ? personalEvents : [];
-                        success(filterRecords(evs));
+                        success(evs);
                         return;
                     }
 
@@ -1696,7 +1660,7 @@
                         .then(r => r.json())
                         .then(data => {
                             if (Array.isArray(data)) {
-                                success(filterRecords(data));
+                                success(data);
                             } else {
                                 success([]);
                             }
@@ -1717,34 +1681,8 @@
                     let link = p.link_description || 'Нет ссылки';
                     document.getElementById('modalLink').innerHTML = link.startsWith('http') ? `<a href="${link}" target="_blank">${link}</a>` : link;
 
-                    const recBox = document.getElementById('modalRecording');
-                    const rec = (p.recordings || {})[dateStr];
-
-                    const templateEventId = p.template_event_id || '';
-                    const eventIdParts = info.event.id.split('_');
-                    const instanceTs = eventIdParts.slice(1).join('_');
-
-                    if (rec && rec.url && rec.url !== 'null') {
-                        recBox.innerHTML = `<a href="${rec.url}" class="btn btn-sm btn-primary w-100" target="_blank">▶️ Смотреть видео</a>`;
-                    } else {
-                        let html = `<p class="text-warning small mb-2">Официальная запись не найдена.</p>`;
-                        if (rec && rec.suggested_url) {
-                            html += `
-                        <div class="mb-2 p-2 border border-info rounded" style="background-color: rgba(13, 202, 240, 0.1);">
-                            <span class="text-info small fw-bold">Предложенная запись:</span><br>
-                            <a href="${rec.suggested_url}" target="_blank" class="small" style="word-break: break-all;">${rec.suggested_url}</a>
-                            <div class="text-muted mt-1" style="font-size: 0.65rem;">От: ${rec.suggested_by_email}</div>
-                        </div>`;
-                        }
-                        html += `
-                        <button class="btn btn-sm btn-outline-info w-100 mb-2" onclick="document.getElementById('suggestBox').classList.toggle('d-none')">🙋 Предложить запись</button>
-                        <div id="suggestBox" class="input-group input-group-sm d-none">
-                            <input type="text" class="form-control bg-dark text-white border-secondary" id="suggestUrlInput" placeholder="https://centraluniversity.ktalk.ru/recordings/...">
-                            <button class="btn btn-info" onclick="submitSuggestRecording('${templateEventId}', '${instanceTs}')">Отправить</button>
-                        </div>
-                    `;
-                        recBox.innerHTML = html;
-                    }
+                    document.getElementById('modalRecording').innerHTML =
+                        '<p class="text-muted small mb-0">Ссылки на записи недоступны.</p>';
 
                     const emails = p.attendees_emails || '';
                     document.getElementById('modalAttendeesList').innerHTML = emails ? emails.split(',').map(e => `<div>${e.trim()}</div>`).join('') : 'Нет данных';
@@ -1753,117 +1691,6 @@
                 }
             });
             calendar.render();
-        }
-
-        async function submitSuggestRecording(eventId, instanceTs) {
-            const urlInput = document.getElementById('suggestUrlInput');
-            const url = urlInput.value.trim();
-            if (!url) return;
-
-            if (!url.startsWith('https://centraluniversity.ktalk.ru/recordings/')) {
-                alert('Пожалуйста, укажите корректную ссылку на запись в KTalk (начинается с https://centraluniversity.ktalk.ru/recordings/)');
-                return;
-            }
-
-            try {
-                const res = await authFetch('/api/recordings/suggest', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        yandex_event_id: eventId,
-                        yandex_instance_start_ts: instanceTs,
-                        suggested_url: url
-                    })
-                });
-                const data = await res.json();
-                if (data.status === 'ok') {
-                    alert('Спасибо! Запись предложена.');
-                    eventModal.hide();
-                    if (calendar) calendar.refetchEvents();
-                } else {
-                    alert('Ошибка: ' + (data.message || 'Не удалось предложить запись.'));
-                }
-            } catch (e) {
-                alert('Ошибка соединения. Попробуйте еще раз.');
-            }
-        }
-
-        async function openUnmatchedModal() {
-            if (!document.getElementById('unmatchedModal')) {
-                const modalHtml = `
-            <div class="modal fade" id="unmatchedModal" tabindex="-1">
-              <div class="modal-dialog modal-dialog-centered modal-lg">
-                <div class="modal-content">
-                  <div class="modal-header border-bottom-0">
-                    <h5 class="modal-title text-warning"><i class="bi bi-database-exclamation"></i> Непривязанные записи</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                  </div>
-                  <div class="modal-body py-1">
-                    <p class="small text-muted mb-3">
-                        Здесь показаны записи из KTalk, для которых система не смогла автоматически найти подходящую пару в расписании. 
-                        Вы можете скопировать нужную ссылку, найти её пару в календаре и вручную предложить её через кнопку "Предложить запись".
-                    </p>
-                    <div id="unmatched-loader" class="text-center d-none">
-                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                    </div>
-                    <div id="unmatched-list" class="list-group" style="max-height: 50vh; overflow-y: auto;">
-                    </div>
-                  </div>
-                  <div class="modal-footer border-top-0">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
-                  </div>
-                </div>
-              </div>
-            </div>`;
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-            }
-
-            const modalEl = document.getElementById('unmatchedModal');
-            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            modal.show();
-
-            const list = document.getElementById('unmatched-list');
-            const loader = document.getElementById('unmatched-loader');
-            list.innerHTML = '';
-            loader.classList.remove('d-none');
-
-            try {
-                const res = await authFetch('/api/recordings/unmatched');
-                const data = await res.json();
-                loader.classList.add('d-none');
-
-                if (data.length === 0) {
-                    list.innerHTML = '<div class="text-muted small text-center p-3">Нет непривязанных записей.</div>';
-                    return;
-                }
-
-                data.forEach(s => {
-                    let eventDtStr = 'Неизвестная дата';
-                    let ts = s.start_time;
-                    if (ts) {
-                        if (ts.endsWith('Z')) ts = ts.replace('Z', '+00:00');
-                        const eventDate = new Date(ts);
-                        if (!isNaN(eventDate)) eventDtStr = eventDate.toLocaleString('ru-RU');
-                    }
-
-                    list.innerHTML += `
-                <div class="list-group-item bg-dark border-secondary text-white mb-2 rounded">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div style="flex:1; min-width:0;">
-                            <strong>${s.title || 'Без названия'}</strong> <span class="text-muted small">(${eventDtStr})</span><br>
-                            <span class="small text-info">Аудитория: ${s.room_name || 'Неизвестно'}</span><br>
-                            <a href="${s.recording_url}" target="_blank" class="small text-break">${s.recording_url}</a>
-                        </div>
-                        <button class="btn btn-sm btn-outline-light ms-2 flex-shrink-0" onclick="navigator.clipboard.writeText('${s.recording_url}'); this.innerText='Скопировано!'; setTimeout(()=>this.innerHTML='<i class=\\'bi bi-copy\\'></i> Скопировать', 2000);">
-                            <i class="bi bi-copy"></i> Скопировать
-                        </button>
-                    </div>
-                </div>`;
-                });
-            } catch (e) {
-                loader.classList.add('d-none');
-                list.innerHTML = '<div class="text-danger small text-center p-3">Ошибка загрузки</div>';
-            }
         }
 
     </script>

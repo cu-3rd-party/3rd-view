@@ -43,7 +43,13 @@ TYPE_RE = re.compile(r",\s*(?:" + "|".join(LESSON_TYPES) + r")\b.*$")
 LEADING_MARKS_RE = re.compile(r"^[\W_]+", re.UNICODE)
 SKIP_EVENT_NAMES = {"Занят", "Событие скрыто"}
 
-STAFF_STOP_WORDS = ("audience-", "room", "plasma", "board", "robot", "admin", "info@", "21-school.ru")
+STAFF_STOP_WORDS = (
+    # аудитории и железо
+    "audience-", "room", "plasma", "board", "robot", "21-school.ru",
+    # служебные ящики: timetable@ стоит в участниках почти каждой пары и иначе
+    # прописался бы преподавателем всему расписанию
+    "admin", "info@", "timetable@", "noreply", "no-reply", "support@", "testoviy",
+)
 STUDENT_DOMAIN = "@edu.centraluniversity."
 
 

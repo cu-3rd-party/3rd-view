@@ -82,6 +82,7 @@ Desktop.ini
 $RECYCLE.BIN/
 # Списки студентов: персональные данные, не для репозитория
 offtopic_students.txt
+time_staff_names*.tsv
 pilot_students.txt
 parse_offtopic.log
 

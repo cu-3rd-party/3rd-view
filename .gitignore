@@ -80,3 +80,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+# Списки студентов: персональные данные, не для репозитория
+offtopic_students.txt
+pilot_students.txt
+parse_offtopic.log

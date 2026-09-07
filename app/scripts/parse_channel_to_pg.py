@@ -71,9 +71,26 @@ def fetch_members(channel_id: str) -> set[str]:
     return emails
 
 
+def load_emails_file(path: str) -> list[str]:
+    emails: set[str] = set()
+    with open(path, encoding="utf-8") as file_obj:
+        for line in file_obj:
+            email = line.strip().lower()
+            if not email or email.startswith("#"):
+                continue
+            if email.endswith(STUDENT_DOMAIN):
+                emails.add(email)
+    return sorted(emails)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--channel", default=DEFAULT_CHANNEL, help="имя канала в TiMe")
+    parser.add_argument(
+        "--emails-file",
+        default=None,
+        help="файл со списком адресов (по одному в строке) вместо запроса в TiMe",
+    )
     parser.add_argument("--start", type=date.fromisoformat, default=date.today(), help="YYYY-MM-DD")
     parser.add_argument("--end", type=date.fromisoformat, default=None, help="YYYY-MM-DD")
     parser.add_argument("--days", type=int, default=14, help="сколько дней вперёд, если не задан --end")
@@ -94,12 +111,15 @@ def main() -> None:
     args = parse_args()
     settings = get_settings()
 
-    print(f"Канал: {args.channel}; период: {args.start} .. {args.end}")
-    channel_id = get_channel_id(args.channel)
-    students = sorted(fetch_members(channel_id))
-    print(f"Студентов в канале: {len(students)}")
+    if args.emails_file:
+        print(f"Ростер из файла {args.emails_file}; период: {args.start} .. {args.end}")
+        students = load_emails_file(args.emails_file)
+    else:
+        print(f"Канал: {args.channel}; период: {args.start} .. {args.end}")
+        students = sorted(fetch_members(get_channel_id(args.channel)))
+    print(f"Студентов: {len(students)}")
     if not students:
-        raise SystemExit("В канале нет ни одного адреса на " + STUDENT_DOMAIN + ", выходим.")
+        raise SystemExit("Нет ни одного адреса на " + STUDENT_DOMAIN + ", выходим.")
     if args.dry_run:
         for email in students[:20]:
             print("  ", email)
@@ -121,35 +141,44 @@ def main() -> None:
                     "INSERT INTO students (email) VALUES (%s) ON CONFLICT (email) DO NOTHING",
                     (email,),
                 )
-            conn.commit()
+        conn.commit()
 
-            found_events: dict[tuple[str, str], dict] = {}
-            links: list[tuple[str, str, str]] = []
-            for index, email in enumerate(students, 1):
-                if index % 25 == 0:
-                    print(f"  календари: {index} / {len(students)}", flush=True)
-                current_start = args.start
-                while current_start <= args.end:
-                    current_end = min(current_start + timedelta(days=CHUNK_DAYS), args.end)
-                    for event in api.get_detailed_events_for_range(email, current_start, current_end):
-                        event_id = str(event.get("event_id") or "")
-                        if not event_id or event_id == "None":
-                            continue
-                        if event.get("name") in SKIP_EVENT_NAMES:
-                            continue
-                        key = (event_id, str(event.get("instance_start_ts")))
-                        found_events.setdefault(key, event)
-                        links.append((email, key[0], key[1]))
-                    current_start = current_end + timedelta(days=1)
-                    time.sleep(0.5)
+    # Обход календарей идёт часами, и всё это время соединение с БД простаивало бы
+    # без единого запроса -- его успеет закрыть таймаут. Поэтому сначала собираем
+    # всё из Яндекса, и только потом открываем соединение заново под запись.
+    found_events: dict[tuple[str, str], dict] = {}
+    links: list[tuple[str, str, str]] = []
+    for index, email in enumerate(students, 1):
+        if index % 25 == 0:
+            print(f"  календари: {index} / {len(students)}", flush=True)
+        current_start = args.start
+        while current_start <= args.end:
+            current_end = min(current_start + timedelta(days=CHUNK_DAYS), args.end)
+            for event in api.get_detailed_events_for_range(email, current_start, current_end):
+                event_id = str(event.get("event_id") or "")
+                if not event_id or event_id == "None":
+                    continue
+                if event.get("name") in SKIP_EVENT_NAMES:
+                    continue
+                key = (event_id, str(event.get("instance_start_ts")))
+                found_events.setdefault(key, event)
+                links.append((email, key[0], key[1]))
+            current_start = current_end + timedelta(days=1)
+            time.sleep(0.5)
 
-            new_events = {key: event for key, event in found_events.items() if key not in known_events}
-            print(f"Найдено пар: {len(found_events)}; из них новых: {len(new_events)}", flush=True)
+    new_events = {key: event for key, event in found_events.items() if key not in known_events}
+    print(f"Найдено пар: {len(found_events)}; из них новых: {len(new_events)}", flush=True)
 
-            for index, (key, event) in enumerate(new_events.items(), 1):
-                if index % 50 == 0:
-                    print(f"  детали: {index} / {len(new_events)}", flush=True)
-                link_desc, attendee_emails = api.get_event_details_by_id(key[0], key[1])
+    details: dict[tuple[str, str], tuple[str, list[str]]] = {}
+    for index, key in enumerate(new_events, 1):
+        if index % 50 == 0:
+            print(f"  детали: {index} / {len(new_events)}", flush=True)
+        details[key] = api.get_event_details_by_id(key[0], key[1])
+
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            for key, event in new_events.items():
+                link_desc, attendee_emails = details[key]
                 matched = [teachers[a] for a in attendee_emails if a in teachers]
                 cur.execute(
                     """

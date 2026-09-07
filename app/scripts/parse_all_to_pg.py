@@ -51,44 +51,57 @@ def fetch_users_in_channel(channel_id: str) -> list[dict]:
     return users
 
 
+def load_courses() -> list[dict]:
+    courses_data = []
+    with open(CSV_PATH, "r", encoding="utf-8-sig") as file_obj:
+        reader = csv.DictReader(file_obj, delimiter=",")
+        for row in reader:
+            link = (row.get("Ссылка на канал в TiMe") or "").strip()
+            if not link:
+                continue
+            channel_name = link.split("/")[-1]
+            if not channel_name or set(channel_name) <= {"_"}:
+                continue
+            courses_data.append(
+                {
+                    "track": (row.get("Направление") or ""),
+                    "course_year": (row.get("Курс") or ""),
+                    "level": (row.get("Уровень") or ""),
+                    "name": (row.get("Название курса") or ""),
+                    "link": link,
+                    "search_query": channel_name,
+                }
+            )
+    return courses_data
+
+
 def main() -> None:
     settings = get_settings()
+    courses_data = load_courses()
+    if not courses_data:
+        raise SystemExit(
+            f"{CSV_PATH}: нет ни одного курса с рабочей ссылкой на канал TiMe. "
+            "База не тронута — заполните файл актуальным списком курсов и запустите снова."
+        )
     init_db()
     clean_database()
     with db_connection() as conn:
         with conn.cursor() as cur:
-            courses_data = []
-            with open(CSV_PATH, "r", encoding="utf-8-sig") as file_obj:
-                reader = csv.DictReader(file_obj, delimiter=",")
-                for row in reader:
-                    link = row.get("Ссылка на канал в TiMe", "").strip()
-                    if not link:
-                        continue
-                    channel_name = link.split("/")[-1]
-                    courses_data.append(
-                        {
-                            "track": row.get("Направление", ""),
-                            "course_year": row.get("Курс", ""),
-                            "level": row.get("Уровень", ""),
-                            "name": row.get("Название курса", ""),
-                            "link": link,
-                            "search_query": channel_name,
-                        }
-                    )
-                    cur.execute(
-                        """
-                        INSERT INTO courses (track, course_year, level, name, search_query, link)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            row.get("Направление", ""),
-                            row.get("Курс", ""),
-                            row.get("Уровень", ""),
-                            row.get("Название курса", ""),
-                            channel_name,
-                            link,
-                        ),
-                    )
+            for course in courses_data:
+                cur.execute(
+                    """
+                    INSERT INTO courses (track, course_year, level, name, search_query, link)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        course["track"],
+                        course["course_year"],
+                        course["level"],
+                        course["name"],
+                        course["search_query"],
+                        course["link"],
+                    ),
+                )
             conn.commit()
 
             all_unique_students = set()

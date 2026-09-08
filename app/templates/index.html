@@ -986,6 +986,19 @@
         // ==========================================
         // РЕЖИМ 1: КАТАЛОГ (LIST)
         // ==========================================
+        // Названия предметов берутся из имён событий календаря и содержат что угодно:
+        // кавычки, амперсанды, угловые скобки. В разметку их нельзя класть как есть.
+        function escapeHtml(value) {
+            return String(value === null || value === undefined ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        let teacherCheckboxSeq = 0;
+
         function initCatalogUI() {
             const container = document.getElementById('catalog-course-filters');
             container.innerHTML = '';
@@ -1015,14 +1028,12 @@
                         div.className = 'catalog-course-item form-check ms-2 d-flex align-items-start justify-content-between mb-1';
 
                         const queryValue = getCourseQuery(course);
-                        const safeName = course.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                        const safeQuery = queryValue.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
                         div.innerHTML = `
                     <div class="w-100 mb-1">
-                        <input class="form-check-input catalog-course-checkbox" type="checkbox" value="${safeQuery}" data-name="${safeName}" id="ccheck${course.id}" checked onchange="catalogUpdateTeachers()">
+                        <input class="form-check-input catalog-course-checkbox" type="checkbox" value="${escapeHtml(queryValue)}" data-name="${escapeHtml(course.name)}" id="ccheck${course.id}" checked onchange="catalogUpdateTeachers()">
                         <label class="form-check-label course-label" for="ccheck${course.id}">
-                            ${course.name}
+                            ${escapeHtml(course.name)}
                         </label>
                     </div>
                 `;
@@ -1069,16 +1080,17 @@
                     teachers.forEach((teacher, idx) => {
                         const div = document.createElement('div');
                         div.className = 'form-check mb-1 catalog-teacher-item';
-                        const safeT = teacher.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
                         if (catalogActiveTeachers[course.query].size === 0 && !catalogActiveTeachers[course.query].has(teacher)) {
                             catalogActiveTeachers[course.query].add(teacher);
                         }
                         const isChecked = catalogActiveTeachers[course.query].has(teacher);
 
+                        const teacherId = `tcheck_${teacherCheckboxSeq++}`;
+
                         div.innerHTML = `
-                        <input class="form-check-input catalog-teacher-checkbox" type="checkbox" value="${safeT}" data-query="${course.query}" id="tcheck_${course.query}_${idx}" ${isChecked ? 'checked' : ''} onchange="catalogToggleTeacher(this)">
-                        <label class="form-check-label course-label" for="tcheck_${course.query}_${idx}">${teacher}</label>
+                        <input class="form-check-input catalog-teacher-checkbox" type="checkbox" value="${escapeHtml(teacher)}" data-query="${escapeHtml(course.query)}" id="${teacherId}" ${isChecked ? 'checked' : ''} onchange="catalogToggleTeacher(this)">
+                        <label class="form-check-label course-label" for="${teacherId}">${escapeHtml(teacher)}</label>
                     `;
                         container.appendChild(div);
                     });
@@ -1228,12 +1240,11 @@
                 let teachersHtml = availableT.length === 0 ?
                     '<div class="text-muted small">Нет известных преподавателей. Перейдите в настройки (⚙️).</div>' :
                     availableT.map((t, idx) => {
-                        const safeT = t.replace(/"/g, '&quot;');
                         return `
                     <div class="form-check mb-1">
-                        <input class="form-check-input" type="checkbox" id="ct_${id}_${idx}" value="${safeT}"
+                        <input class="form-check-input" type="checkbox" id="ct_${id}_${idx}" value="${escapeHtml(t)}"
                             ${selectedT.includes(t) ? 'checked' : ''} onchange="cardsToggleTeacher('${id}', this.value, this.checked)">
-                        <label class="form-check-label teacher-check-label w-100" for="ct_${id}_${idx}">${t}</label>
+                        <label class="form-check-label teacher-check-label w-100" for="ct_${id}_${idx}">${escapeHtml(t)}</label>
                     </div>
                 `}).join('') + `
                 <div class="mt-2 d-flex gap-2">
@@ -1244,8 +1255,8 @@
                 card.innerHTML = `
                 <div class="filter-card-header">
                     <div>
-                        <div class="filter-card-title">${course.name}</div>
-                        <div class="filter-card-meta">${course.track || 'Другое'} • ${course.course_year || 'Без курса'}</div>
+                        <div class="filter-card-title">${escapeHtml(course.name)}</div>
+                        <div class="filter-card-meta">${escapeHtml(course.track || 'Другое')} • ${escapeHtml(course.course_year || 'Без курса')}</div>
                     </div>
                     <div class="d-flex gap-1 flex-shrink-0">
                         <button class="btn-icon text-danger" title="Удалить" onclick="cardsRemoveCourse('${id}')"><i class="bi bi-x-lg"></i></button>
@@ -1637,7 +1648,9 @@
                     if (currentMode === 'list') {
                         document.querySelectorAll('.catalog-course-checkbox:checked').forEach(cb => {
                             const query = cb.value;
-                            const teachers = Array.from(document.querySelectorAll(`.catalog-teacher-checkbox[data-query="${query}"]:checked`)).map(tcb => tcb.value);
+                            const teachers = Array.from(document.querySelectorAll('.catalog-teacher-checkbox'))
+                                .filter(tcb => tcb.checked && tcb.dataset.query === query)
+                                .map(tcb => tcb.value);
                             if (teachers.length > 0) filters.push({ query, teachers });
                         });
                     } else if (currentMode === 'cards') {

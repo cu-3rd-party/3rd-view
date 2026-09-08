@@ -988,6 +988,16 @@
         // ==========================================
         // Названия предметов берутся из имён событий календаря и содержат что угодно:
         // кавычки, амперсанды, угловые скобки. В разметку их нельзя класть как есть.
+        // Каталог насчитывает под 900 предметов с длинными названиями. В query-строке
+        // это давало URL под 175 КБ, поэтому список уходит телом POST-запроса.
+        async function teachersSearch(queries) {
+            return authFetch('/api/teachers/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ queries })
+            });
+        }
+
         function escapeHtml(value) {
             return String(value === null || value === undefined ? '' : value)
                 .replace(/&/g, '&amp;')
@@ -1031,7 +1041,7 @@
 
                         div.innerHTML = `
                     <div class="w-100 mb-1">
-                        <input class="form-check-input catalog-course-checkbox" type="checkbox" value="${escapeHtml(queryValue)}" data-name="${escapeHtml(course.name)}" id="ccheck${course.id}" checked onchange="catalogUpdateTeachers()">
+                        <input class="form-check-input catalog-course-checkbox" type="checkbox" value="${escapeHtml(queryValue)}" data-name="${escapeHtml(course.name)}" id="ccheck${course.id}" onchange="catalogUpdateTeachers()">
                         <label class="form-check-label course-label" for="ccheck${course.id}">
                             ${escapeHtml(course.name)}
                         </label>
@@ -1052,16 +1062,13 @@
             const container = document.getElementById('catalog-teacher-filters');
 
             if (selected.length === 0) {
-                container.innerHTML = '<p class="text-muted small">Выберите предметы выше</p>';
+                container.innerHTML = '<p class="text-muted small">Отметьте предмет выше — сюда подтянутся его преподаватели.</p>';
                 if (currentMode === 'list' && calendar) calendar.refetchEvents();
                 return;
             }
 
-            let url = new URL('/api/teachers', window.location.origin);
-            selected.forEach(c => url.searchParams.append('queries', c.query));
-
             try {
-                const res = await authFetch(url);
+                const res = await teachersSearch(selected.map(c => c.query));
                 const teachersByQuery = await res.json();
 
                 container.innerHTML = '';
@@ -1158,23 +1165,19 @@
                 return;
             }
 
-            let url = new URL('/api/teachers', window.location.origin);
-            let needsFetch = false;
+            const missing = [];
 
             activeIds.forEach(id => {
                 const course = allCourses.find(c => c.id == id);
                 if (course) {
                     const query = getCourseQuery(course);
-                    if (!cardsAvailableTeachers[query]) {
-                        url.searchParams.append('queries', query);
-                        needsFetch = true;
-                    }
+                    if (!cardsAvailableTeachers[query]) missing.push(query);
                 }
             });
 
-            if (needsFetch) {
+            if (missing.length > 0) {
                 try {
-                    const res = await authFetch(url);
+                    const res = await teachersSearch(missing);
                     const newTeachers = await res.json();
                     Object.assign(cardsAvailableTeachers, newTeachers);
                 } catch (e) {

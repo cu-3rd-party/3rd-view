@@ -6,33 +6,60 @@ from psycopg2.extras import RealDictCursor
 
 from app.auth import verify_admin, verify_user_or_admin
 from app.db import db_connection
-from app.schemas import NewTeacherModel
+from app.schemas import NewTeacherModel, TeacherSearchRequest
 
 
 router = APIRouter()
 
 
-@router.get("/api/teachers")
-async def get_teachers(queries: Optional[list[str]] = Query(None), auth: dict = Depends(verify_user_or_admin)) -> dict:
-    if not queries:
+def _teachers_by_query(queries: list[str]) -> dict[str, list[str]]:
+    """Для каждой строки поиска -- преподаватели пар, чьё название её содержит.
+
+    Раньше здесь был отдельный SELECT ... LIKE на каждый запрос, а каталог вырос
+    до ~900 предметов, так что один заход в фильтр стоил ~900 запросов в базу.
+    Названий пар всего пара тысяч -- дешевле забрать их разом и сопоставить в питоне.
+    """
+    wanted = [q.strip() for q in queries if q and q.strip() and q != "null"]
+    if not wanted:
         return {}
-    result = {}
+
     with db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            for query in queries:
-                if not query.strip() or query == "null":
-                    continue
-                cur.execute("SELECT DISTINCT teacher_names FROM calendar_events WHERE event_name LIKE %s", (f"%{query}%",))
-                teacher_set = set()
-                for row in cur.fetchall():
-                    if row["teacher_names"]:
-                        teacher_set.update(item.strip() for item in row["teacher_names"].split(",") if item.strip())
-                teacher_list = sorted(teacher_set)
-                if "Не определен" in teacher_list:
-                    teacher_list.remove("Не определен")
-                    teacher_list.append("Не определен")
-                result[query] = teacher_list
+            cur.execute(
+                "SELECT DISTINCT event_name, teacher_names FROM calendar_events "
+                "WHERE event_name IS NOT NULL AND teacher_names IS NOT NULL"
+            )
+            pairs = [(row["event_name"], row["teacher_names"]) for row in cur.fetchall()]
+
+    result: dict[str, list[str]] = {}
+    for query in wanted:
+        if query in result:
+            continue
+        teacher_set: set[str] = set()
+        for event_name, teacher_names in pairs:
+            if query in event_name:
+                teacher_set.update(item.strip() for item in teacher_names.split(",") if item.strip())
+        teacher_list = sorted(teacher_set)
+        if "Не определен" in teacher_list:
+            teacher_list.remove("Не определен")
+            teacher_list.append("Не определен")
+        result[query] = teacher_list
     return result
+
+
+@router.get("/api/teachers")
+async def get_teachers(queries: Optional[list[str]] = Query(None), auth: dict = Depends(verify_user_or_admin)) -> dict:
+    return _teachers_by_query(queries or [])
+
+
+@router.post("/api/teachers/search")
+async def search_teachers(data: TeacherSearchRequest, auth: dict = Depends(verify_user_or_admin)) -> dict:
+    """То же самое, но списком в теле запроса.
+
+    Каталог отдаёт сотни названий, а они длинные -- в query-строке это давало URL
+    под 175 КБ, который уже ловил ERR_HTTP2_PROTOCOL_ERROR.
+    """
+    return _teachers_by_query(data.queries)
 
 
 @router.post("/api/teachers")

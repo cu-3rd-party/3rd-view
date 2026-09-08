@@ -49,3 +49,7 @@ class VerifyRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class TeacherSearchRequest(BaseModel):
+    queries: list[str] = []

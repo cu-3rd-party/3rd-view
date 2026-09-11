@@ -16,7 +16,7 @@ Writes nothing unless --apply is passed.
 import argparse
 import csv
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from app.db import db_connection, init_db
 
@@ -110,14 +110,21 @@ def load_names(path: str | None) -> dict[str, str]:
     return names
 
 
-def collect_subjects(cur, min_attendees: int) -> dict[str, set[str]]:
-    """Subjects worth putting in the catalog, mapped to the semesters they ran in.
+def collect_subjects(cur, min_attendees: int, since: str) -> dict[str, set[str]]:
+    """Subjects worth putting in the catalog, mapped to the semesters they run in.
 
     A name is a class if it follows the convention; a name that does not can still
     earn its place by drawing a crowd (guest lectures, ВКР seminars). Everything
     else is someone's personal reminder and stays out.
+
+    Only classes from `since` onwards count. The events table keeps every semester
+    we ever parsed, and a catalog of subjects that finished months ago is a list of
+    things the student cannot attend -- last time it was 619 dead entries out of 903.
     """
-    cur.execute("SELECT event_name, start_time, total_attendees FROM calendar_events")
+    cur.execute(
+        "SELECT event_name, start_time, total_attendees FROM calendar_events WHERE start_time >= %s",
+        (since,),
+    )
     found: dict[str, dict] = {}
     for event_name, start_time, attendees in cur.fetchall():
         if not event_name or event_name in SKIP_EVENT_NAMES:
@@ -186,6 +193,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--names-file", default=None, help="csv/tsv: email,Фамилия Имя")
     parser.add_argument(
+        "--since",
+        default=date.today().isoformat(),
+        help="YYYY-MM-DD: в каталог попадают предметы, у которых есть пары с этой даты (по умолчанию сегодня)",
+    )
+    parser.add_argument(
         "--min-attendees",
         type=int,
         default=20,
@@ -201,7 +213,7 @@ def main() -> None:
 
     with db_connection() as conn:
         with conn.cursor() as cur:
-            subjects = collect_subjects(cur, args.min_attendees)
+            subjects = collect_subjects(cur, args.min_attendees, args.since)
             staff = collect_staff(cur, args.min_attendees)
             cur.execute("SELECT email, full_name FROM teachers")
             known_teachers = {row[0].strip().lower(): (row[1] or "").strip() for row in cur.fetchall()}
@@ -220,7 +232,7 @@ def main() -> None:
                 if email in names and names[email] != known_teachers[email]
             ]
 
-            print(f"Предметов выведено из пар: {len(subjects)}")
+            print(f"Предметов с парами от {args.since}: {len(subjects)}")
             for semester, count in sorted(by_semester.items()):
                 print(f"   {semester}: {count}")
             print(f"Курсов в таблице сейчас: {old_courses} -> станет {sum(len(s) for s in subjects.values())}")

@@ -894,15 +894,18 @@
                 header.innerText = course.name;
                 container.appendChild(header);
 
-                if (!catalogActiveTeachers[course.query]) catalogActiveTeachers[course.query] = new Set();
+                // Предмет выбрали впервые -- показываем всех его преподавателей. Раньше
+                // условие стояло внутри цикла ниже и отмечало только первого: у предмета
+                // с 12 преподавателями студент видел 2 пары из 33. Пустое множество
+                // означает, что человек снял галочки сам, и его выбор мы не трогаем.
+                if (!catalogActiveTeachers[course.query]) {
+                    catalogActiveTeachers[course.query] = new Set(teachers);
+                }
 
                 teachers.forEach((teacher, idx) => {
                     const div = document.createElement('div');
                     div.className = 'form-check mb-1 catalog-teacher-item';
 
-                    if (catalogActiveTeachers[course.query].size === 0 && !catalogActiveTeachers[course.query].has(teacher)) {
-                        catalogActiveTeachers[course.query].add(teacher);
-                    }
                     const isChecked = catalogActiveTeachers[course.query].has(teacher);
 
                     const teacherId = `tcheck_${teacherCheckboxSeq++}`;
